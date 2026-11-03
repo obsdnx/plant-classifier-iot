@@ -1,4 +1,0 @@
-requests>=2.31.0
-gpiozero>=2.0
-picamera2>=0.3.19
-# picamera2 is pre-installed on Raspberry Pi OS — only install if missing
