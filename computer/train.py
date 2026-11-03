@@ -87,43 +87,51 @@ val_tf = transforms.Compose([
 class LeafDataset(Dataset):
     def __init__(self, root, classes, transform=None):
         self.transform = transform
-        self.samples = []
+        raw = []
         for i, cls in enumerate(classes):
             cls_dir = root / cls
             for ext in ("*.jpg", "*.jpeg", "*.png", "*.JPG", "*.JPEG", "*.PNG"):
                 for p in cls_dir.glob(ext):
-                    self.samples.append((p, i))
-        print(f"  {len(self.samples)} images across {len(classes)} classes")
+                    raw.append((p, i))
+
+        print(f"  Loading {len(raw)} images into RAM...")
+        self.images, self.labels = [], []
+        for p, label in raw:
+            try:
+                self.images.append(Image.open(p).convert("RGB"))
+                self.labels.append(label)
+            except Exception:
+                pass
+        print(f"  {len(self.images)} images cached across {len(classes)} classes")
 
     def __len__(self):
-        return len(self.samples)
+        return len(self.images)
 
     def __getitem__(self, idx):
-        path, label = self.samples[idx]
-        img = Image.open(path).convert("RGB")
+        img = self.images[idx]
         if self.transform:
             img = self.transform(img)
-        return img, label
+        return img, self.labels[idx]
 
 full_ds = LeafDataset(DATA_DIR, classes, transform=None)
 n_val   = int(len(full_ds) * VAL_SPLIT)
 n_train = len(full_ds) - n_val
-train_ds_raw, val_ds_raw = random_split(full_ds, [n_train, n_val],
-                                         generator=torch.Generator().manual_seed(42))
+train_indices, val_indices = random_split(range(len(full_ds)), [n_train, n_val],
+                                           generator=torch.Generator().manual_seed(42))
 
 class TransformDataset(Dataset):
-    def __init__(self, base, transform):
-        self.base = base
+    def __init__(self, base_ds, indices, transform):
+        self.base = base_ds
+        self.indices = list(indices)
         self.transform = transform
     def __len__(self):
-        return len(self.base)
+        return len(self.indices)
     def __getitem__(self, idx):
-        path, label = self.base.dataset.samples[self.base.indices[idx]]
-        img = Image.open(path).convert("RGB")
-        return self.transform(img), label
+        img = self.base.images[self.indices[idx]]
+        return self.transform(img), self.base.labels[self.indices[idx]]
 
-train_ds = TransformDataset(train_ds_raw, train_tf)
-val_ds   = TransformDataset(val_ds_raw,   val_tf)
+train_ds = TransformDataset(full_ds, train_indices, train_tf)
+val_ds   = TransformDataset(full_ds, val_indices,   val_tf)
 
 train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True,  num_workers=0, pin_memory=False)
 val_loader   = DataLoader(val_ds,   batch_size=BATCH_SIZE, shuffle=False, num_workers=0, pin_memory=False)

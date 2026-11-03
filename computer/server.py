@@ -1,8 +1,13 @@
-from fastapi import FastAPI, File, UploadFile, HTTPException
-from fastapi.responses import JSONResponse, FileResponse
+import asyncio
+import json
+
+from fastapi import FastAPI, File, Form, UploadFile, HTTPException
+from fastapi.responses import JSONResponse, FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 import uvicorn
+
+import hat
 
 from classifier import classify
 from explainer import explain
@@ -14,10 +19,98 @@ app = FastAPI(title="Plant Health Classifier")
 
 _static = Path(__file__).parent / "static"
 app.mount("/static", StaticFiles(directory=str(_static)), name="static")
+app.mount("/records", StaticFiles(directory=str(hat.RECORDS_DIR)), name="records")
+
+
+@app.on_event("startup")
+async def startup():
+    hat.attach_loop(asyncio.get_running_loop())
+    hat.start_sensor_thread()
+    hat.info(f"Server started. Claude {'connected' if hat.claude_ready() else 'NOT connected (no ANTHROPIC_API_KEY)'}")
+
 
 @app.get("/")
-def index():
+def dashboard():
+    return FileResponse(str(_static / "hat.html"))
+
+
+@app.get("/upload")
+def upload_page():
     return FileResponse(str(_static / "index.html"))
+
+
+@app.get("/api/status")
+def status():
+    return {**hat.state, "claude_ready": hat.claude_ready(), "claude_model": hat.CLAUDE_MODEL,
+            "hatcam_stream": hat.hatcam_stream_url(),
+            "classifier_demo": __import__("classifier").DEMO_MODE,
+            "trigger_cm": hat.TRIGGER_CM, "cooldown_s": hat.COOLDOWN_S}
+
+
+@app.get("/api/history")
+def get_history():
+    return hat.history()
+
+
+@app.get("/api/log")
+def get_log():
+    return list(hat.log)
+
+
+@app.post("/api/trigger")
+def manual_trigger():
+    hat.state["last_trigger"] = 0
+    return {"triggered": hat.trigger("dashboard button")}
+
+
+@app.post("/api/analyze")
+def analyze(image: UploadFile = File(...), source: str = Form("manual")):
+    if hat.state["busy"]:
+        raise HTTPException(status_code=409, detail="Still processing the previous picture")
+    return hat.run_pipeline(image.file.read(), source)
+
+
+@app.post("/api/tts")
+def tts(body: dict):
+    """Turn text into 8 kHz 8-bit raw audio the ESP32 speaker can download and play."""
+    import socket, subprocess, uuid, wave
+    text = str(body.get("text", ""))[:400]
+    tts_dir = hat.RECORDS_DIR / "tts"
+    tts_dir.mkdir(exist_ok=True)
+    name = uuid.uuid4().hex[:8]
+    wav = tts_dir / f"{name}.wav"
+    subprocess.run(["say", "-r", "165", "-o", str(wav), "--file-format=WAVE", "--data-format=UI8@8000", text], check=True)
+    with wave.open(str(wav)) as w:
+        frames = w.readframes(w.getnframes())
+    wav.unlink()
+    # No loudness boost: with the speaker wired straight to the pin, louder audio browns out the ESP32.
+    (tts_dir / f"{name}.raw").write_bytes(frames[: 8000 * 12])  # max 12 s fits in ESP32 memory
+    for old in sorted(tts_dir.glob("*.raw"))[:-20]:
+        old.unlink()
+    s_ = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s_.connect(("8.8.8.8", 80))
+    lan_ip = s_.getsockname()[0]
+    s_.close()
+    return {"url": f"http://{lan_ip}:8000/records/tts/{name}.raw", "seconds": round(min(len(frames), 96000) / 8000, 1)}
+
+
+@app.get("/api/events")
+async def events():
+    q = hat.subscribe()
+
+    async def stream():
+        try:
+            yield f"data: {json.dumps({'kind': 'hello', 'status': status()})}\n\n"
+            while True:
+                try:
+                    event = await asyncio.wait_for(q.get(), timeout=15)
+                    yield f"data: {json.dumps(event)}\n\n"
+                except asyncio.TimeoutError:
+                    yield ": keepalive\n\n"
+        finally:
+            hat.unsubscribe(q)
+
+    return StreamingResponse(stream(), media_type="text/event-stream")
 
 
 @app.get("/health")

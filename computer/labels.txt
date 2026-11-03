@@ -1,5 +1,5 @@
-Bacterial leaf spot
-Downy mildew
-Healthy
-Mosaic
-Powdery mildew
+Bacterial Leaf Spot
+Downy Mildew
+Healthy Leaf
+Mosaic Disease
+Powdery_Mildew

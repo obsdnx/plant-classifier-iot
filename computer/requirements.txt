@@ -8,3 +8,4 @@ torch>=2.0.0
 torchvision>=0.15.0
 transformers>=4.35.0
 huggingface_hub>=0.20.0
+anthropic>=2.4.0

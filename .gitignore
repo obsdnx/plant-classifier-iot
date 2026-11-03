@@ -1,0 +1,25 @@
+# Secrets
+.env
+esp32/hat_cam/wifi_secrets.h
+esp32/hat_sensor/wifi_secrets.h
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environment
+venv/
+.venv/
+
+# ML models (large binary files)
+computer/model/
+computer/model_plantvillage.h5
+
+# Runtime artifacts
+computer/records/
+computer/photos/
+
+# macOS
+.DS_Store
+**/.DS_Store
