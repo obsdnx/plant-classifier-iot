@@ -3,11 +3,17 @@
 // Live view: http://hatcam.local:81/stream
 // Arduino IDE: Board "AI Thinker ESP32-CAM". Put hotspot name/password in wifi_secrets.h.
 // Sensor wiring: VCC -> 3V3, GND -> GND, Trig -> IO13, Echo -> IO14.
+// Power when USB is unplugged: 5V -> 5V pin, GND -> GND pin (do NOT use 3.3V pin).
 #include "esp_camera.h"
 #include <WiFi.h>
 #include <ESPmDNS.h>
+#include <ArduinoOTA.h>
 #include "esp_http_server.h"
+#include "esp_task_wdt.h"
 #include "wifi_secrets.h"
+
+#define WIFI_TIMEOUT_MS 20000   // restart if WiFi not up in 20 s
+#define WDT_TIMEOUT_S   10      // watchdog: restart if loop stalls 10 s
 
 #define PWDN_GPIO_NUM  32
 #define RESET_GPIO_NUM -1
@@ -76,6 +82,7 @@ static esp_err_t stream_handler(httpd_req_t* req) {
   httpd_resp_set_type(req, "multipart/x-mixed-replace;boundary=" BOUNDARY);
   httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
   while (true) {
+    esp_task_wdt_reset();  // keep watchdog happy during streaming
     camera_fb_t* fb = esp_camera_fb_get();
     if (!fb) return ESP_FAIL;
     size_t n = snprintf(part, sizeof(part), "\r\n--" BOUNDARY "\r\nContent-Type: image/jpeg\r\nContent-Length: %u\r\n\r\n", fb->len);
@@ -136,23 +143,57 @@ void setup() {
 
   WiFi.mode(WIFI_STA);
   WiFi.setSleep(false);
+  WiFi.setAutoReconnect(true);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   Serial.printf("Connecting to WiFi \"%s\"", WIFI_SSID);
-  while (WiFi.status() != WL_CONNECTED) { delay(500); Serial.print("."); }
+  unsigned long wifiStart = millis();
+  while (WiFi.status() != WL_CONNECTED) {
+    if (millis() - wifiStart > WIFI_TIMEOUT_MS) {
+      Serial.println("\nWIFI_TIMEOUT — restarting in 3 s");
+      delay(3000);
+      ESP.restart();
+    }
+    delay(500); Serial.print(".");
+  }
   Serial.printf("\nWIFI_OK ip=%s\n", WiFi.localIP().toString().c_str());
   if (MDNS.begin("hatcam")) {
     MDNS.addService("http", "tcp", 80);
     Serial.println("MDNS_OK http://hatcam.local");
   }
   startServers();
+
+  // OTA — upload new sketches wirelessly from Arduino IDE
+  ArduinoOTA.setHostname("hatcam");
+  ArduinoOTA.begin();
+  Serial.println("OTA ready");
+
+  // Watchdog: restart board if it hangs for WDT_TIMEOUT_S seconds
+  esp_task_wdt_init(WDT_TIMEOUT_S, true);
+  esp_task_wdt_add(NULL);
 }
 
 void loop() {
+  esp_task_wdt_reset();
+  ArduinoOTA.handle();
+
   digitalWrite(TRIG, HIGH);
   delayMicroseconds(10);
   digitalWrite(TRIG, LOW);
   long us = pulseIn(ECHO, HIGH, 30000);
   distanceCm = us == 0 ? -1 : us / 58.0;
+
+  // Auto-reconnect if WiFi drops
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("WIFI_LOST — reconnecting...");
+    WiFi.reconnect();
+    unsigned long t = millis();
+    while (WiFi.status() != WL_CONNECTED && millis() - t < WIFI_TIMEOUT_MS) {
+      delay(500); esp_task_wdt_reset();
+    }
+    if (WiFi.status() != WL_CONNECTED) { delay(1000); ESP.restart(); }
+    Serial.printf("WIFI_BACK ip=%s\n", WiFi.localIP().toString().c_str());
+  }
+
   unsigned long now = millis();
   if (now < blinkUntil) digitalWrite(RED_LED, (now / 150) % 2 ? LOW : HIGH);
   else digitalWrite(RED_LED, now % 3000 < 120 ? LOW : HIGH);  // short heartbeat flash = online

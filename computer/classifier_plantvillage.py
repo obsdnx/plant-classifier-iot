@@ -70,10 +70,20 @@ def classify_plantvillage(image_bytes: bytes) -> dict:
     probs = _model.predict(arr, verbose=0)[0]
     i = int(np.argmax(probs))
 
+    label = CLASS_NAMES[i]
+    confidence = round(float(probs[i]), 4)
+
+    # OOD heuristic: if ALL top scores cluster on one plant type at high confidence,
+    # the model may be force-fitting an unseen plant. Flag it so the dashboard can warn.
+    top_plant = label.split("_")[0].lower()  # "Tomato", "Pepper", "Potato"
+    same_plant_total = sum(p for j, p in enumerate(probs) if CLASS_NAMES[j].lower().startswith(top_plant))
+    ood_warning = bool(confidence > 0.85 and float(same_plant_total) > 0.98)
+
     return {
-        "label": CLASS_NAMES[i],
-        "confidence": round(float(probs[i]), 4),
-        "healthy": CLASS_NAMES[i] in HEALTHY_LABELS,
+        "label": label,
+        "confidence": confidence,
+        "healthy": label in HEALTHY_LABELS,
         "all_scores": {CLASS_NAMES[j]: round(float(probs[j]), 4) for j in range(len(CLASS_NAMES))},
+        "ood_warning": ood_warning,
         "demo": False,
     }

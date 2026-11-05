@@ -1,45 +1,95 @@
-// Plant Health Hat - ESP32-S3 + HC-SR04 ultrasonic sensor, readable over WiFi and USB.
-// WiFi:  http://hatsensor.local/distance  ->  {"cm": 23.4}   (null = nothing in range)
-// USB:   prints "Distance: 23.4 cm" lines at 115200, same as the ultrasonic sketch.
-// Works on two boards (hotspot details in wifi_secrets.h):
-//   ESP32-S3 (Board "ESP32S3 Dev Module", USB CDC On Boot "Enabled"): Trig -> G1, Echo -> G2, colour LED on pin 48
-//   plain ESP32 (Board "ESP32 Dev Module"):                          Trig -> GPIO 5, Echo -> GPIO 18, blue LED on GPIO 2,
-//                                                                    speaker on GPIO 25 + GND (1 beep = started, 2 = WiFi on)
-// Sensor power: VCC -> 3V3, GND -> GND.
-// LED: blinks while connecting, short flash every 3 s when online, fast blinking for 3 s when /blink is called.
+// Plant Health Hat — ESP32 combined sensor + I2S speaker + WiFi + OTA
+// Ultrasonic: Trig -> GPIO 5 | Echo -> GPIO 18
+// I2S amp:    BCLK -> GPIO 27 | LRC -> GPIO 14 | DIN -> GPIO 26
+// WiFi: connects to hotspot, announces as hatsensor.local
+// Endpoints:
+//   GET /distance  -> {"cm": 23.4} or {"cm": null}
+//   GET /say?url=  -> downloads 8kHz u8 mono audio and plays it
+//   GET /beep      -> plays a test beep
+//   GET /status    -> {"ip":..., "rssi":...}
+// OTA: upload new sketch wirelessly from Arduino IDE after first flash
+
 #include <WiFi.h>
 #include <ESPmDNS.h>
 #include <WebServer.h>
 #include <HTTPClient.h>
+#include <ArduinoOTA.h>
+#include "driver/i2s.h"
+#include <math.h>
 #include "wifi_secrets.h"
 
-#if CONFIG_IDF_TARGET_ESP32S3
-const int TRIG = 1;
-const int ECHO = 2;
-void led(uint8_t r, uint8_t g, uint8_t b) { rgbLedWrite(RGB_BUILTIN, r, g, b); }
-#else
-const int TRIG = 5;
-const int ECHO = 18;
-const int BLUE_LED = 2;
-const int SPEAKER = 25;  // DAC pin
-void led(uint8_t r, uint8_t g, uint8_t b) { digitalWrite(BLUE_LED, (r || g || b) ? HIGH : LOW); }
-void tone25(int hz, int ms) {
-  long halfUs = 500000L / hz;
-  unsigned long end = millis() + ms;
-  while (millis() < end) {
-    dacWrite(SPEAKER, 255); delayMicroseconds(halfUs);
-    dacWrite(SPEAKER, 0);   delayMicroseconds(halfUs);
-  }
-  dacWrite(SPEAKER, 0);
+// ---- pins ----
+#define TRIG   5
+#define ECHO   18
+#define BCLK   27
+#define LRC    14
+#define DOUT   26
+#define RATE   8000
+
+WebServer server(80);
+float distanceCm = -1;
+
+// ---- I2S ----
+void i2s_setup() {
+  i2s_config_t cfg = {};
+  cfg.mode                 = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX);
+  cfg.sample_rate          = RATE;
+  cfg.bits_per_sample      = I2S_BITS_PER_SAMPLE_16BIT;
+  cfg.channel_format       = I2S_CHANNEL_FMT_RIGHT_LEFT;
+  cfg.communication_format = I2S_COMM_FORMAT_STAND_I2S;
+  cfg.intr_alloc_flags     = 0;
+  cfg.dma_buf_count        = 8;
+  cfg.dma_buf_len          = 128;
+  cfg.use_apll             = false;
+  cfg.tx_desc_auto_clear   = true;
+  i2s_driver_install(I2S_NUM_0, &cfg, 0, NULL);
+  i2s_pin_config_t pins = {};
+  pins.bck_io_num   = BCLK;
+  pins.ws_io_num    = LRC;
+  pins.data_out_num = DOUT;
+  pins.data_in_num  = I2S_PIN_NO_CHANGE;
+  i2s_set_pin(I2S_NUM_0, &pins);
 }
-// Downloads 8 kHz unsigned 8-bit mono audio from url and plays it on the DAC speaker.
+
+void i2s_play_u8(const uint8_t* data, size_t len) {
+  int16_t buf[64][2];
+  size_t written = 0;
+  while (written < len) {
+    int chunk = min((size_t)64, len - written);
+    for (int i = 0; i < chunk; i++) {
+      int16_t s = ((int16_t)data[written + i] - 128) * 256;
+      buf[i][0] = s;
+      buf[i][1] = s;
+    }
+    size_t out = 0;
+    i2s_write(I2S_NUM_0, buf, chunk * 4, &out, portMAX_DELAY);
+    written += chunk;
+  }
+}
+
+void playTone(int hz, int ms) {
+  int n = RATE * ms / 1000;
+  int16_t buf[64][2];
+  int written = 0;
+  while (written < n) {
+    int chunk = min(64, n - written);
+    for (int i = 0; i < chunk; i++) {
+      int16_t s = (int16_t)(sinf(2.0f * M_PI * hz * (written + i) / (float)RATE) * 20000.0f);
+      buf[i][0] = s; buf[i][1] = s;
+    }
+    size_t out = 0;
+    i2s_write(I2S_NUM_0, buf, chunk * 4, &out, portMAX_DELAY);
+    written += chunk;
+  }
+}
+
 String playUrl(const String& url) {
   HTTPClient http;
   if (!http.begin(url)) return "bad url";
   int code = http.GET();
   if (code != 200) { http.end(); return "download failed " + String(code); }
   int len = http.getSize();
-  if (len <= 0 || len > 8000 * 12) len = 8000 * 12;
+  if (len <= 0 || len > RATE * 12) len = RATE * 12;
   uint8_t* buf = (uint8_t*)malloc(len);
   if (!buf) { http.end(); return "out of memory"; }
   WiFiClient* stream = http.getStreamPtr();
@@ -50,96 +100,93 @@ String playUrl(const String& url) {
     if (n > 0) got += n; else delay(1);
   }
   http.end();
-  // The speaker is wired straight to the pin (no capacitor), so silence must be 0 V:
-  // only the upper half of the waveform is played, doubled. A steady mid-level voltage
-  // would push constant current through the speaker and brown out the board.
-  unsigned long next = micros();
-  for (int i = 0; i < got; i++) {
-    next += 125;  // 8000 samples per second
-    int v = ((int)buf[i] - 128) * 2;
-    while ((long)(micros() - next) < 0) {}
-    dacWrite(SPEAKER, v > 0 ? (v > 255 ? 255 : v) : 0);
-  }
-  dacWrite(SPEAKER, 0);
+  i2s_play_u8(buf, got);
   free(buf);
-  return "played " + String(got / 8) + " ms";
+  return "played " + String(got / RATE * 1000) + " ms";
 }
 
-void beeps(int n, bool rising) {
-  for (int i = 0; i < n; i++) { tone25(rising ? 660 + i * 220 : 880, 120); delay(80); }
-}
-#endif
-float distanceCm = -1;
-WebServer server(80);
-unsigned long blinkUntil = 0;
-
-void updateLed(bool online) {
-  unsigned long now = millis();
-  if (now < blinkUntil) { led((now / 150) % 2 ? 60 : 0, 0, (now / 150) % 2 ? 60 : 0); return; }
-  if (!online) { led(0, 0, (now / 300) % 2 ? 40 : 0); return; }
-  led(0, now % 3000 < 120 ? 40 : 0, 0);
-}
-
+// ---- HTTP helpers ----
 void sendJson(const String& body) {
   server.sendHeader("Access-Control-Allow-Origin", "*");
   server.send(200, "application/json", body);
 }
 
+// ---- setup ----
 void setup() {
   Serial.begin(115200);
-#ifndef CONFIG_IDF_TARGET_ESP32S3
-  pinMode(BLUE_LED, OUTPUT);
-  beeps(1, false);
-#endif
+  delay(500);
+
+  // Ultrasonic
   pinMode(TRIG, OUTPUT);
   pinMode(ECHO, INPUT);
   digitalWrite(TRIG, LOW);
 
+  // I2S
+  i2s_setup();
+  playTone(880, 200);  // boot beep
+
+  // WiFi
+  Serial.print("Connecting to ");
+  Serial.println(WIFI_SSID);
   WiFi.mode(WIFI_STA);
   WiFi.setSleep(false);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  server.on("/distance", [] { sendJson(distanceCm < 0 ? "{\"cm\":null}" : "{\"cm\":" + String(distanceCm, 1) + "}"); });
-#ifndef CONFIG_IDF_TARGET_ESP32S3
-  server.on("/beep", [] { sendJson("{\"beeping\":true}"); beeps(3, false); });
+  unsigned long t0 = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - t0 < 15000) {
+    delay(300);
+    Serial.print(".");
+  }
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("\nWiFi failed — continuing without network");
+  } else {
+    Serial.println("\nWiFi OK: " + WiFi.localIP().toString());
+    playTone(660, 150); delay(80); playTone(880, 150);  // 2-beep = wifi ok
+  }
+
+  // mDNS
+  MDNS.begin("hatsensor");
+  MDNS.addService("http", "tcp", 80);
+
+  // OTA
+  ArduinoOTA.setHostname("hatsensor");
+  ArduinoOTA.begin();
+
+  // Routes
+  server.on("/distance", [] {
+    sendJson(distanceCm < 0 ? "{\"cm\":null}" : "{\"cm\":" + String(distanceCm, 1) + "}");
+  });
   server.on("/say", [] {
     String url = server.arg("url");
+    if (url.isEmpty()) { server.send(400, "text/plain", "missing url"); return; }
     String result = playUrl(url);
     Serial.println("SAY " + result);
     sendJson("{\"result\":\"" + result + "\"}");
   });
-#endif
-  server.on("/blink", [] { blinkUntil = millis() + 3000; sendJson("{\"blinking\":true}"); });
-  server.on("/status", [] { sendJson("{\"ip\":\"" + WiFi.localIP().toString() + "\",\"rssi\":" + String(WiFi.RSSI()) + "}"); });
+  server.on("/beep", [] {
+    playTone(880, 300);
+    sendJson("{\"ok\":true}");
+  });
+  server.on("/status", [] {
+    sendJson("{\"ip\":\"" + WiFi.localIP().toString() + "\",\"rssi\":" + String(WiFi.RSSI()) + "}");
+  });
+  server.begin();
+  Serial.println("HTTP server started — http://hatsensor.local");
 }
 
+// ---- loop ----
 void loop() {
-  static bool online = false;
-  if (!online && WiFi.status() == WL_CONNECTED) {
-    online = true;
-    MDNS.begin("hatsensor");
-    MDNS.addService("http", "tcp", 80);
-    server.begin();
-    Serial.printf("WIFI_OK ip=%s http://hatsensor.local\n", WiFi.localIP().toString().c_str());
-#ifndef CONFIG_IDF_TARGET_ESP32S3
-    beeps(2, true);
-#endif
-  }
-  if (online) server.handleClient();
-  updateLed(online);
-#ifndef CONFIG_IDF_TARGET_ESP32S3
-  if (Serial.available()) {  // test over USB: "SAY http://laptop:8000/records/tts/x.raw"
-    String line = Serial.readStringUntil('\n');
-    line.trim();
-    if (line.startsWith("SAY ")) Serial.println("SAY " + playUrl(line.substring(4)));
-  }
-#endif
+  ArduinoOTA.handle();
+  server.handleClient();
 
+  // Ultrasonic reading
   digitalWrite(TRIG, HIGH);
   delayMicroseconds(10);
   digitalWrite(TRIG, LOW);
   long us = pulseIn(ECHO, HIGH, 30000);
-  distanceCm = us == 0 ? -1 : us / 58.0;
+  distanceCm = (us == 0) ? -1 : us / 58.0;
+
   if (distanceCm < 0) Serial.println("No echo");
   else Serial.printf("Distance: %.1f cm\n", distanceCm);
+
   delay(60);
 }
