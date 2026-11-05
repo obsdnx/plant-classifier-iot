@@ -1,6 +1,5 @@
-// ESP32 I2S sound test — robust version
+// ESP32 + MAX98357A I2S sound test
 // DIN=32  BCLK=35  LRC=34
-// If your amp has a SD/EN/MUTE pin, wire it to GPIO33 (or change SD_PIN)
 
 #include <driver/i2s.h>
 #include <math.h>
@@ -8,7 +7,6 @@
 #define I2S_DOUT  32
 #define I2S_BCLK  35
 #define I2S_LRC   34
-#define SD_PIN    33   // SD/EN/MUTE pin on amp — set to -1 if not connected
 
 #define SAMPLE_RATE 16000
 #define AMPLITUDE   30000
@@ -18,8 +16,9 @@ void i2s_init() {
     .mode                 = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_TX),
     .sample_rate          = SAMPLE_RATE,
     .bits_per_sample      = I2S_BITS_PER_SAMPLE_16BIT,
-    .channel_format       = I2S_CHANNEL_FMT_ONLY_LEFT,  // mono amp
-    .communication_format = I2S_COMM_FORMAT_STAND_I2S,
+    .channel_format       = I2S_CHANNEL_FMT_ONLY_LEFT,
+    // compatible with both old and new ESP32 Arduino cores
+    .communication_format = (i2s_comm_format_t)(I2S_COMM_FORMAT_I2S | I2S_COMM_FORMAT_I2S_MSB),
     .intr_alloc_flags     = ESP_INTR_FLAG_LEVEL1,
     .dma_buf_count        = 8,
     .dma_buf_len          = 128,
@@ -66,21 +65,18 @@ void silence(int ms) {
 
 void setup() {
   Serial.begin(115200);
-  if (SD_PIN >= 0) {
-    pinMode(SD_PIN, OUTPUT);
-    digitalWrite(SD_PIN, HIGH);  // un-mute amp
-    Serial.println("SD pin HIGH");
-  }
   i2s_init();
-  Serial.println("I2S ready — playing tones");
+  Serial.println("I2S ready");
 }
 
 void loop() {
-  Serial.println("beep 440Hz");
-  play_tone(440, 400);
+  Serial.println("440Hz");
+  play_tone(440, 500);
   silence(200);
-  play_tone(880, 400);
+  Serial.println("880Hz");
+  play_tone(880, 500);
   silence(200);
-  play_tone(1320, 400);
-  silence(800);
+  Serial.println("1320Hz");
+  play_tone(1320, 500);
+  silence(1000);
 }
