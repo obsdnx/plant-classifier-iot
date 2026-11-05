@@ -1,11 +1,11 @@
 // ESP32 + MAX98357A I2S sound test
-// DIN=32  BCLK=34  LRC=35
+// BCLK=32  DIN=33  LRC=35
 
 #include <driver/i2s.h>
 #include <math.h>
 
-#define I2S_DOUT  32
-#define I2S_BCLK  34
+#define I2S_DOUT  33
+#define I2S_BCLK  32
 #define I2S_LRC   35
 
 #define SAMPLE_RATE 16000
