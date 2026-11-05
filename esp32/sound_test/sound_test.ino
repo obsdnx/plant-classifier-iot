@@ -52,15 +52,8 @@ void play_tone(int freq, int ms) {
 }
 
 void silence(int ms) {
-  int16_t buf[128] = {};
-  size_t written;
-  int total = SAMPLE_RATE * ms / 1000 * sizeof(int16_t);
-  int sent = 0;
-  while (sent < total) {
-    int n = min((int)sizeof(buf), total - sent);
-    i2s_write(I2S_NUM_0, buf, n, &written, portMAX_DELAY);
-    sent += written;
-  }
+  delay(ms);
+  i2s_zero_dma_buffer(I2S_NUM_0);
 }
 
 void setup() {
