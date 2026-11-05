@@ -1,12 +1,12 @@
 // ESP32 I2S sound test — Arduino core 3.x API
-// MAX98357A: BCLK=32  DIN=33  LRC=25
+// MAX98357A: BCLK=32  DIN=33  LRC=26
 
 #include "ESP_I2S.h"
 #include <math.h>
 
 #define I2S_BCLK   32
 #define I2S_DOUT   33
-#define I2S_LRC    25
+#define I2S_LRC    26
 
 #define SAMPLE_RATE 16000
 #define AMPLITUDE   28000
