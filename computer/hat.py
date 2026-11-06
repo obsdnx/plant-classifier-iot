@@ -430,7 +430,7 @@ def speak_wifi(text: str) -> bool:
         for old in sorted(TTS_DIR.glob("*.raw"))[:-20]:
             old.unlink()
         url = f"http://{_lan_ip()}:8000/records/tts/{name}.raw"
-        resp = requests.get(f"{HATSENSOR_URL}/say?url={url}", timeout=(3, 30))
+        resp = requests.get(f"{HATSENSOR_URL}/say?url={url}", timeout=(5, 90))
         state["hatsensor_online"] = resp.status_code == 200
         return resp.status_code == 200
     except Exception as e:

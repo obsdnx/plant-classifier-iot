@@ -19,6 +19,7 @@ computer/model_plantvillage.h5
 # Runtime artifacts
 computer/records/
 computer/photos/
+computer/server.log
 
 # macOS
 .DS_Store

@@ -168,7 +168,8 @@ void setup() {
   Serial.println("OTA ready");
 
   // Watchdog: restart board if it hangs for WDT_TIMEOUT_S seconds
-  esp_task_wdt_init(WDT_TIMEOUT_S, true);
+  esp_task_wdt_config_t wdt_cfg = { .timeout_ms = WDT_TIMEOUT_S * 1000, .idle_core_mask = 0, .trigger_panic = true };
+  esp_task_wdt_init(&wdt_cfg);
   esp_task_wdt_add(NULL);
 }
 
