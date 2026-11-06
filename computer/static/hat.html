@@ -1,0 +1,1137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Plant Health Hat</title>
+<style>
+:root {
+  --bg:#07090e; --surface:#0d1117; --panel:#111620; --border:#1c2333;
+  --text:#e2e8f0; --dim:#6b7a8d;
+  --ok:#22c55e; --bad:#ef4444; --warn:#f59e0b; --accent:#3b82f6;
+  --ok-bg:#051a0d; --bad-bg:#1a0505;
+  --ok-glow:0 0 60px rgba(34,197,94,.22); --bad-glow:0 0 60px rgba(239,68,68,.22);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);height:100vh;overflow:hidden;display:flex;flex-direction:column}
+
+/* ── OVERLAY ── */
+#overlay{position:fixed;inset:0;background:rgba(0,0,0,.93);display:grid;place-items:center;z-index:200;backdrop-filter:blur(12px)}
+#overlay .box{background:var(--panel);border:1px solid var(--border);border-radius:24px;padding:48px 44px;max-width:380px;text-align:center}
+#overlay .box h2{font-size:26px;font-weight:800;margin:12px 0 8px}
+#overlay .box p{color:var(--dim);font-size:14px;line-height:1.6;margin-bottom:28px}
+#startBtn{font-size:16px;padding:14px 32px;border-radius:14px;background:#1d4ed8;border:1px solid #2563eb;color:#fff;cursor:pointer;transition:background .15s;width:100%}
+#startBtn:hover{background:#2563eb}
+
+/* ── HEADER ── */
+header{display:flex;align-items:center;gap:10px;padding:8px 18px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap}
+.logo{font-size:17px;font-weight:800;letter-spacing:-.02em;white-space:nowrap}
+.logo span{color:var(--ok)}
+.pills{display:flex;gap:5px;flex-wrap:wrap}
+.pill{font-size:11px;padding:3px 9px;border-radius:99px;background:#111620;color:var(--dim);border:1px solid var(--border)}
+.pill.ok{background:#0a2515;color:var(--ok);border-color:#14401f}
+.pill.bad{background:#220808;color:var(--bad);border-color:#451010}
+.pill.warn{background:#221505;color:var(--warn);border-color:#452b08}
+.pill.run{background:#0a1830;color:var(--accent);border-color:#0f2a56}
+.hdr-right{margin-left:auto;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+
+/* ── BUTTONS ── */
+button{background:#141c2b;color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 13px;font-size:13px;cursor:pointer;transition:background .15s,border-color .15s}
+button:hover{background:#1c2840;border-color:#2d3f5e}
+button.primary{background:#1d4ed8;border-color:#2563eb;color:#fff}
+button.primary:hover{background:#2563eb}
+button.danger{background:#2a0808;border-color:var(--bad);color:var(--bad)}
+button.danger:hover{background:#3d0d0d}
+button.success{background:var(--ok-bg);border-color:var(--ok);color:var(--ok)}
+button.success:hover{background:#0a2e18}
+
+/* ── CONTROLS BAR ── */
+#controlsBar{display:flex;align-items:center;gap:8px;padding:7px 18px;background:#09101a;border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap}
+.ctrl-group{display:flex;align-items:center;gap:5px;padding-right:12px;border-right:1px solid var(--border)}
+.ctrl-group:last-child{border-right:none}
+.ctrl-label{font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--dim);margin-right:3px;white-space:nowrap}
+input[type=range]{accent-color:var(--accent)}
+.vol-val{font-size:12px;font-weight:700;min-width:28px}
+select{background:#111620;color:var(--text);border:1px solid var(--border);border-radius:7px;padding:5px 9px;font-size:12px}
+.transport{display:flex;align-items:center;gap:4px}
+.tbtn{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;padding:0;flex-shrink:0}
+
+/* ── MAIN GRID ── */
+.main-grid{flex:1;display:grid;grid-template-columns:55fr 45fr;min-height:0;overflow:hidden}
+
+/* ── CAMERA PANEL ── */
+.cam-panel{position:relative;background:#000;border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+video,.stream-img{width:100%;height:100%;object-fit:cover;display:block;flex:1;min-height:0}
+.stream-img{background:#000}
+.cam-corner{position:absolute;top:10px;left:10px;display:flex;gap:6px;align-items:center;z-index:5}
+.live-badge{background:rgba(0,0,0,.72);border:1px solid rgba(255,255,255,.12);border-radius:6px;padding:3px 9px;font-size:11px;text-transform:uppercase;letter-spacing:.07em;display:flex;align-items:center;gap:5px}
+.live-dot{width:6px;height:6px;border-radius:50%;background:var(--bad);animation:blink 1.2s ease-in-out infinite}
+@keyframes blink{50%{opacity:0}}
+.cam-dist{background:rgba(0,0,0,.72);border:1px solid rgba(255,255,255,.12);border-radius:6px;padding:4px 11px;font-size:17px;font-weight:700;font-variant-numeric:tabular-nums;transition:color .2s}
+.cam-dist.trigger{color:var(--bad)}
+.cam-actions{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(0,0,0,.85));padding:20px 14px 10px;display:flex;gap:8px;z-index:5}
+
+/* ── RESULT PANEL ── */
+.result-panel{display:flex;flex-direction:column;overflow:hidden;background:var(--bg)}
+
+/* Sensor strip */
+.sensor-strip{flex-shrink:0;padding:11px 16px;border-bottom:1px solid var(--border);background:var(--surface)}
+.sensor-row{display:flex;align-items:center;gap:14px}
+.sensor-dist{font-size:36px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums;min-width:96px}
+.sensor-dist small{font-size:14px;color:var(--dim);font-weight:400}
+.sensor-bars{flex:1}
+.sensor-bar-label{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--dim);margin-bottom:4px}
+.sensor-track{height:7px;background:#111620;border-radius:4px;position:relative;overflow:visible}
+.sensor-fill{height:100%;background:var(--accent);border-radius:4px;transition:width .1s}
+.sensor-th{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--bad);border-radius:2px}
+#spark{width:100%;height:38px;display:block;margin-top:6px}
+
+/* Verdict area */
+.verdict-area{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;text-align:center;min-height:0;transition:background .5s,box-shadow .5s;position:relative}
+.verdict-area.ok{background:var(--ok-bg);box-shadow:var(--ok-glow) inset}
+.verdict-area.bad{background:var(--bad-bg);box-shadow:var(--bad-glow) inset}
+.idle-prompt{display:flex;flex-direction:column;align-items:center;gap:10px;animation:pulse-idle 2.6s ease-in-out infinite}
+@keyframes pulse-idle{0%,100%{opacity:.45}50%{opacity:.85}}
+.idle-icon{font-size:72px;line-height:1}
+.idle-title{font-size:20px;font-weight:700;color:var(--dim)}
+.idle-sub{font-size:13px;color:var(--dim)}
+#verdictResult{display:none;width:100%;max-width:420px}
+.verdict-emoji{font-size:68px;line-height:1;margin-bottom:12px;display:block}
+#verdict{font-size:46px;font-weight:900;letter-spacing:-.03em;color:var(--dim)}
+#verdict.ok{color:var(--ok)}
+#verdict.bad{color:var(--bad)}
+#spoken{font-size:15px;line-height:1.65;margin-top:12px}
+#diag{font-size:12px;color:var(--dim);margin-top:6px}
+#classifierBanner{display:none;margin-top:10px;padding:8px 12px;border-radius:8px;font-size:12px;line-height:1.5}
+.verdict-controls{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:14px}
+
+/* Assistant status line */
+#assistantStatus{position:absolute;top:0;left:0;right:0;padding:8px 14px;font-size:12px;color:var(--dim);border-bottom:1px solid var(--border);background:rgba(13,17,23,.8);display:flex;align-items:center;gap:6px;min-height:34px}
+.ast-dot{width:7px;height:7px;border-radius:50%;background:var(--dim);flex-shrink:0;transition:background .3s}
+.ast-dot.ok{background:var(--ok);box-shadow:0 0 6px var(--ok)}
+.ast-dot.bad{background:var(--bad)}
+.ast-dot.run{background:var(--accent);animation:blink .9s ease-in-out infinite}
+#astMsg{flex:1;font-style:italic}
+
+/* Photo strip */
+.photo-strip{flex-shrink:0;display:flex;align-items:center;gap:12px;padding:9px 16px;border-top:1px solid var(--border);background:var(--surface)}
+#shot{width:68px;height:51px;object-fit:cover;border-radius:7px;border:1px solid var(--border);background:#000;flex-shrink:0}
+.photo-info{flex:1;min-width:0}
+.pi-label{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--dim)}
+#shotInfo{font-size:12px;color:var(--dim);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#uploadPreviewWrap{display:none;align-items:center;gap:8px;margin-top:4px}
+#uploadPreview{width:56px;height:42px;object-fit:cover;border-radius:6px;border:1px solid var(--border)}
+
+/* ── PIPELINE BAR ── */
+.pipeline-bar{flex-shrink:0;background:var(--surface);border-top:1px solid var(--border);padding:7px 14px;display:flex;align-items:center;gap:0;overflow-x:auto}
+.ps-wrap{display:flex;align-items:center;flex:1;min-width:max-content}
+.ps-node{display:flex;flex-direction:column;align-items:center;padding:5px 10px;border-radius:8px;border:1px solid var(--border);background:var(--panel);min-width:76px;transition:border-color .2s,background .2s}
+.ps-node.running{border-color:var(--accent);background:#091428}
+.ps-node.done{border-color:var(--ok);background:var(--ok-bg)}
+.ps-node.error{border-color:var(--bad);background:var(--bad-bg)}
+.ps-node.skipped{border-color:var(--warn);background:#1a1004}
+.ps-num{font-size:9px;color:var(--dim);margin-bottom:1px}
+.ps-name{font-size:11px;font-weight:700;white-space:nowrap}
+.ps-status{font-size:9px;color:var(--dim);margin-top:1px;white-space:nowrap}
+.ps-node.running .ps-status{color:var(--accent)}
+.ps-node.done .ps-status{color:var(--ok)}
+.ps-node.error .ps-status{color:var(--bad)}
+.ps-node.skipped .ps-status{color:var(--warn)}
+.ps-arrow{color:var(--border);font-size:12px;flex-shrink:0;padding:0 2px}
+
+/* ── HISTORY STRIP ── */
+.history-strip{flex-shrink:0;background:var(--surface);border-top:1px solid var(--border);padding:7px 14px;display:flex;align-items:center;gap:10px;overflow-x:auto;min-height:82px}
+.history-lbl{font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:var(--dim);flex-shrink:0}
+#history{display:flex;gap:8px;align-items:center}
+.hcard{display:flex;flex-direction:column;align-items:center;gap:3px;flex-shrink:0;cursor:pointer;opacity:.82;transition:opacity .15s;text-decoration:none}
+.hcard:hover{opacity:1}
+.hcard img{width:66px;height:50px;object-fit:cover;border-radius:6px;border:2px solid var(--border)}
+.hcard img.ok{border-color:var(--ok)}
+.hcard img.bad{border-color:var(--bad)}
+.hcard .hc-label{font-size:10px;color:var(--dim)}
+.hcard .hc-label.ok{color:var(--ok)}
+.hcard .hc-label.bad{color:var(--bad)}
+#historyEmpty{font-size:12px;color:var(--dim)}
+
+/* ── DEBUG DRAWER ── */
+#debugDrawer{position:fixed;right:-420px;top:0;bottom:0;width:420px;background:var(--panel);border-left:1px solid var(--border);z-index:150;overflow-y:auto;padding:16px;transition:right .3s;display:flex;flex-direction:column;gap:14px}
+#debugDrawer.open{right:0}
+#debugDrawer h3{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--dim);margin-bottom:6px;border-top:1px solid var(--border);padding-top:12px}
+#debugDrawer h3:first-of-type{border-top:none;padding-top:0}
+pre{background:#040608;border-radius:6px;padding:8px;font-size:10px;overflow:auto;max-height:150px;color:var(--dim);border:1px solid var(--border)}
+#log{font-family:ui-monospace,monospace;font-size:11px;height:150px;overflow:auto;background:#040608;border-radius:8px;padding:8px;border:1px solid var(--border)}
+#log .warn{color:var(--warn)}#log .error{color:var(--bad)}#log .t{color:#2d3545}
+.comp{background:#0a0f18;border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:5px}
+.comp .top{display:flex;align-items:center;gap:8px;font-weight:700;font-size:12px}
+.dot{width:8px;height:8px;border-radius:50%;background:#2d3545;flex:none}
+.dot.ok{background:var(--ok)}.dot.bad{background:var(--bad)}.dot.warn{background:var(--warn)}
+.comp .info{color:var(--dim);font-size:11px;margin-top:4px}
+.comp .row{display:flex;gap:5px;margin-top:5px;flex-wrap:wrap}
+.comp button{padding:3px 9px;font-size:11px}
+.score-row{display:flex;align-items:center;gap:6px;margin-bottom:3px}
+.score-label{font-size:10px;color:var(--dim);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.score-track{height:5px;background:#111620;border-radius:3px;width:80px;overflow:hidden;flex-shrink:0}
+.score-fill{height:100%;border-radius:3px}
+.score-pct{font-size:10px;color:var(--dim);min-width:28px;text-align:right}
+.dstep{border:1px solid var(--border);border-radius:7px;padding:7px 10px;background:#09111a;margin-bottom:4px;font-size:12px}
+.dstep .top{display:flex;align-items:center;gap:8px}
+.dstep .num{width:20px;height:20px;border-radius:50%;background:#1a2030;display:grid;place-items:center;font-size:10px;flex-shrink:0}
+.dstep .name{flex:1;font-weight:700}
+.dstep .sum{color:var(--dim);font-size:11px;margin-top:4px;white-space:pre-wrap}
+.dstep.running{border-color:var(--accent)}.dstep.running .num{background:var(--accent);color:#000}
+.dstep.done{border-color:var(--ok)}.dstep.done .num{background:var(--ok);color:#000}
+.dstep.error{border-color:var(--bad)}.dstep.error .num{background:var(--bad)}
+.dstep.skipped .num{background:var(--warn);color:#000}
+details summary{cursor:pointer;color:var(--dim);font-size:11px}
+.flash{animation:flash .4s}
+@keyframes flash{from{filter:brightness(2.5)}to{filter:none}}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#2d3545;border-radius:3px}
+</style>
+</head>
+<body>
+
+<!-- ── STARTUP OVERLAY ── -->
+<div id="overlay"><div class="box">
+  <div style="font-size:56px;line-height:1;margin-bottom:4px">🌱</div>
+  <h2>Plant Health Hat</h2>
+  <p>AI-powered plant disease detection.<br>Wave your hand to scan, or use the controls.</p>
+  <button id="startBtn">Start</button>
+</div></div>
+
+<!-- ── HEADER ── -->
+<header>
+  <div class="logo">🌱 Plant <span>Health</span> Hat</div>
+  <div class="pills">
+    <span class="pill" id="pSensor">sensor: ?</span>
+    <span class="pill" id="pCam">camera: off</span>
+    <span class="pill" id="pClaude">Claude: ?</span>
+    <span class="pill" id="pServer">server: connecting</span>
+    <span class="pill" id="pBusy">idle</span>
+  </div>
+  <div class="hdr-right">
+    <button onclick="document.getElementById('debugDrawer').classList.toggle('open')" style="padding:5px 11px;font-size:12px">⚙ Debug</button>
+  </div>
+</header>
+
+<!-- ── CONTROLS BAR ── -->
+<div id="controlsBar">
+  <!-- Transport: Stop / Start / Play -->
+  <div class="ctrl-group">
+    <span class="ctrl-label">Monitor</span>
+    <div class="transport">
+      <button class="tbtn danger" id="stopBtn" title="Stop monitoring">⏹</button>
+      <button class="tbtn success" id="monBtn" title="Start monitoring">▶</button>
+      <button class="tbtn primary" id="triggerBtn" title="Trigger a scan now">⚡</button>
+    </div>
+  </div>
+
+  <!-- Camera select + snap -->
+  <div class="ctrl-group">
+    <span class="ctrl-label">Camera</span>
+    <select id="camSelect"></select>
+    <button id="snapBtn" style="padding:5px 11px;font-size:12px" title="Take a photo now">📸 Snap</button>
+    <button id="simBtn" style="padding:5px 11px;font-size:12px" title="Simulate a hand wave">🤚 Simulate</button>
+  </div>
+
+  <!-- Tests -->
+  <div class="ctrl-group">
+    <span class="ctrl-label">Tests</span>
+    <button id="testAudioBtn" style="padding:5px 11px;font-size:12px">🔊 Audio</button>
+    <button id="testSensorBtn" style="padding:5px 11px;font-size:12px">📡 Sensor</button>
+    <button id="testCameraBtn" style="padding:5px 11px;font-size:12px">📷 Camera</button>
+  </div>
+
+  <!-- Say anything -->
+  <div class="ctrl-group">
+    <input id="sayInput" type="text" placeholder="Type to speak…"
+           style="background:#262b36;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:5px 10px;font-size:13px;width:220px">
+    <button id="sayBtn" style="padding:5px 12px;font-size:12px">Say it</button>
+  </div>
+
+  <!-- Volume -->
+  <div class="ctrl-group" style="border-right:none">
+    <span class="ctrl-label">🔊</span>
+    <input type="range" id="volSlider" min="0" max="100" value="80" step="5" style="width:90px">
+    <span class="vol-val" id="volVal">80%</span>
+    <label style="font-size:12px;color:var(--dim);display:flex;align-items:center;gap:5px;margin-left:4px">
+      <input type="checkbox" id="autoSpeak" checked> Auto
+    </label>
+    <label style="font-size:12px;color:var(--dim);display:flex;align-items:center;gap:5px">
+      <input type="checkbox" id="hatSpeaker" checked> Hat
+    </label>
+  </div>
+</div>
+
+<!-- ── MAIN GRID ── -->
+<div class="main-grid">
+
+  <!-- LEFT: Camera -->
+  <div class="cam-panel">
+    <div class="cam-corner">
+      <div class="live-badge"><div class="live-dot"></div>LIVE</div>
+      <div class="cam-dist" id="camDist">-- cm</div>
+    </div>
+    <video id="video" autoplay playsinline muted></video>
+    <img id="hatStream" class="stream-img" alt="hat camera" style="display:none">
+    <img id="serverStream" class="stream-img" alt="server webcam" style="display:none">
+    <div class="cam-actions">
+      <!-- intentionally minimal — controls are in the bar above -->
+    </div>
+  </div>
+
+  <!-- RIGHT: Result -->
+  <div class="result-panel">
+
+    <!-- Sensor strip -->
+    <div class="sensor-strip">
+      <div class="sensor-row">
+        <div>
+          <div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--dim);margin-bottom:3px">Distance</div>
+          <div class="sensor-dist" id="dist">-- <small>cm</small></div>
+        </div>
+        <div class="sensor-bars">
+          <div class="sensor-bar-label">Trigger zone &lt; <span id="thText">5</span> cm</div>
+          <div class="sensor-track">
+            <div class="sensor-fill" id="barFill"></div>
+            <div class="sensor-th" id="barTh"></div>
+          </div>
+          <canvas id="spark"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Verdict area -->
+    <div class="verdict-area" id="verdictWidget">
+      <!-- Assistant status (always visible at top) -->
+      <div id="assistantStatus">
+        <div class="ast-dot" id="astDot"></div>
+        <div id="astMsg">Starting up…</div>
+      </div>
+
+      <!-- Idle state -->
+      <div class="idle-prompt" id="scanPrompt">
+        <div class="idle-icon">🌿</div>
+        <div class="idle-title">Ready to scan</div>
+        <div class="idle-sub">Wave a hand over the sensor, or press ⚡ Trigger</div>
+      </div>
+
+      <!-- Result state -->
+      <div id="verdictResult">
+        <div class="verdict-emoji" id="verdictEmoji">🌿</div>
+        <div id="verdict">—</div>
+        <div id="spoken" style="margin-top:12px"></div>
+        <div id="diag" style="margin-top:6px"></div>
+        <div id="classifierBanner"></div>
+        <div class="verdict-controls">
+          <button id="speakBtn" style="font-size:12px;padding:5px 11px">🔊 Say again</button>
+          <select id="voiceSelect" style="font-size:12px"></select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Photo strip -->
+    <div class="photo-strip">
+      <img id="shot" alt="">
+      <div class="photo-info">
+        <div class="pi-label">Last captured</div>
+        <div id="shotInfo">None yet</div>
+        <label style="font-size:11px;color:var(--dim);cursor:pointer;display:inline-flex;align-items:center;gap:5px;margin-top:4px;background:#141c2b;border:1px solid var(--border);border-radius:6px;padding:3px 9px" onmouseover="this.style.background='#1c2840'" onmouseout="this.style.background='#141c2b'">
+          📁 Upload
+          <input type="file" id="uploadInput" accept="image/*" style="display:none">
+        </label>
+      </div>
+      <div id="uploadPreviewWrap">
+        <img id="uploadPreview" alt="">
+        <button id="uploadAnalyseBtn" class="primary" style="font-size:11px;padding:4px 10px">Analyse</button>
+      </div>
+    </div>
+
+  </div><!-- /result-panel -->
+</div><!-- /main-grid -->
+
+<!-- ── PIPELINE BAR ── -->
+<div class="pipeline-bar">
+  <div class="ps-wrap" id="pipelineWrap"></div>
+</div>
+
+<!-- ── HISTORY STRIP ── -->
+<div class="history-strip">
+  <div class="history-lbl">History</div>
+  <div id="history"></div>
+  <div id="historyEmpty">No scans yet</div>
+</div>
+
+<!-- ── DEBUG DRAWER ── -->
+<div id="debugDrawer">
+  <div style="display:flex;align-items:center;justify-content:space-between">
+    <strong style="font-size:14px">Debug panel</strong>
+    <button onclick="document.getElementById('debugDrawer').classList.remove('open')" style="padding:3px 9px;font-size:12px">✕</button>
+  </div>
+
+  <div>
+    <h3>Components</h3>
+    <div id="comps"></div>
+  </div>
+
+  <div>
+    <h3>System state</h3>
+    <div id="dbState" style="font-family:ui-monospace,monospace;font-size:10px;color:var(--dim);background:#040608;padding:8px;border-radius:6px;border:1px solid var(--border);white-space:pre-wrap"></div>
+  </div>
+
+  <div>
+    <h3>Pumpkin CNN scores</h3>
+    <div id="cnnScores"></div>
+  </div>
+
+  <div>
+    <h3>PlantVillage CNN scores</h3>
+    <div id="pvScores"></div>
+  </div>
+
+  <div>
+    <h3>Pipeline steps</h3>
+    <div id="steps"></div>
+  </div>
+
+  <div>
+    <h3>Burst shots</h3>
+    <div style="display:flex;align-items:center;gap:8px">
+      <button id="burstBtn" style="font-size:12px;padding:5px 10px">Burst shots</button>
+      <input id="burstCount" type="number" min="2" max="10" value="3"
+             style="width:46px;background:#111620;color:var(--text);border:1px solid var(--border);border-radius:6px;padding:5px;text-align:center">
+    </div>
+    <div id="burstPanel" style="display:none;margin-top:10px">
+      <div id="burstGrid" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+      <div id="burstSummary" style="margin-top:8px;font-size:14px;font-weight:700"></div>
+    </div>
+  </div>
+
+  <div>
+    <h3>Event log</h3>
+    <div id="log"></div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+const STEPS = [
+  ["trigger",       "Trigger",       "Hand wave detected"],
+  ["capture",       "Capture",       "Photo taken"],
+  ["classifier",    "Pumpkin CNN",   "MobileNetV2 (5 classes)"],
+  ["pv_classifier", "PV CNN",        "PlantVillage (15 classes)"],
+  ["claude",        "Claude",        "Vision analysis"],
+  ["speak",         "Speak",         "Spoken aloud"],
+  ["saved",         "Saved",         "Written to disk"],
+];
+
+let triggerCm = 5, busy = false, readings = [], voices = [], hatStream = null, monitoringOn = true;
+const HAT = "hatcam";
+const SERVER_CAM = "servercam";
+const HAT_BASES = ["http://hatcam.local", "http://172.20.10.2"];
+let hatBase = null, hatOnline = false, lastTrig = 0, cooldownS = 8;
+const SENSOR_BASES = ["http://hatsensor.local", "http://172.20.10.5", "http://172.20.10.4"];
+let sensorBase = null, sensorOnline = false, closeCount = 0, speaking = false;
+let serverCamReady = false;
+const MIN_REAL_CM = 2;
+let noEchoCount = 0;
+
+// ── Assistant status line ──
+function setAssistant(msg, state = "idle") {
+  const dot = $("astDot"), txt = $("astMsg");
+  if (!dot || !txt) return;
+  txt.textContent = msg;
+  dot.className = "ast-dot" + (state !== "idle" ? " " + state : "");
+}
+setAssistant("Starting up…", "run");
+
+// ── Volume ──
+const volSlider = $("volSlider");
+const volVal = $("volVal");
+const sayInput = $("sayInput"), sayBtn = $("sayBtn");
+sayBtn.onclick = async () => {
+  const text = sayInput.value.trim();
+  if (!text) return;
+  sayBtn.disabled = true; sayBtn.textContent = "…";
+  try { await fetch("/api/speak", {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({text})}); }
+  catch(e) { addLog("error", "Say failed: " + e.message); }
+  sayBtn.disabled = false; sayBtn.textContent = "Say it";
+};
+sayInput.onkeydown = e => { if (e.key === "Enter") sayBtn.click(); };
+
+volSlider.oninput = () => { volVal.textContent = volSlider.value + "%"; };
+volSlider.onchange = async () => {
+  await fetch("/api/volume", {method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({volume: volSlider.value / 100})});
+};
+
+// ── Transport buttons ──
+$("stopBtn").onclick = async () => {
+  await fetch("/api/monitoring", {method:"POST", headers:{"content-type":"application/json"},
+                                   body: JSON.stringify({enabled: false})});
+};
+$("monBtn").onclick = async () => {
+  await fetch("/api/monitoring", {method:"POST", headers:{"content-type":"application/json"},
+                                   body: JSON.stringify({enabled: true})});
+};
+$("triggerBtn").onclick = () => {
+  if (hatOnline) takeAndAnalyze("manual trigger");
+  else fetch("/api/trigger", {method:"POST"});
+};
+
+// ── Test buttons ──
+$("testAudioBtn").onclick = async () => {
+  setAssistant("Testing audio…", "run");
+  addLog("info", "Test: speaking test sentence");
+  speak("Hello, I am your plant health hat. Audio is working.");
+};
+$("testSensorBtn").onclick = async () => {
+  setAssistant("Testing ultrasonic sensor…", "run");
+  addLog("info", "Test: checking sensor readings");
+  if (sensorOnline || hatOnline) {
+    setAssistant(`Sensor OK — reading ${$("dist").textContent.trim()}`, "ok");
+    addLog("info", "Sensor is live. Current distance: " + $("dist").textContent.trim());
+  } else {
+    setAssistant("Sensor not connected — check USB or WiFi", "bad");
+    addLog("warn", "Sensor not found on WiFi or USB");
+  }
+};
+$("testCameraBtn").onclick = async () => {
+  setAssistant("Testing camera…", "run");
+  addLog("info", "Test: grabbing a frame");
+  const blob = await grabFrame();
+  if (blob) {
+    $("shot").src = URL.createObjectURL(blob);
+    $("shot").classList.remove("flash"); void $("shot").offsetWidth; $("shot").classList.add("flash");
+    $("shotInfo").textContent = "Camera test — " + new Date().toLocaleTimeString();
+    setAssistant("Camera OK — test frame captured", "ok");
+    addLog("info", "Camera test passed: " + Math.round(blob.size / 1024) + " KB");
+  } else {
+    setAssistant("Camera not ready — is it connected?", "bad");
+    addLog("error", "Camera test failed: no frame returned");
+  }
+};
+
+// ── Distance handling ──
+function handleDistance(d, where) {
+  showDistance(true, d);
+  noEchoCount = d == null ? noEchoCount + 1 : 0;
+  if (d != null) setComp("ultrasonic", "ok", `reading ${d.toFixed(1)} cm (${where})`);
+  else if (noEchoCount > 20) setComp("ultrasonic", "warn", `no echo - check Trig/Echo wiring (${where})`);
+  closeCount = d != null && d >= MIN_REAL_CM && d < triggerCm ? closeCount + 1 : 0;
+  if (closeCount >= 2 && !busy && !speaking && Date.now() - lastTrig > cooldownS * 1000) {
+    lastTrig = Date.now(); closeCount = 0;
+    addLog("info", `TRIGGER — hand wave at ${d.toFixed(1)} cm (${where})`);
+    takeAndAnalyze(`hand wave ${d.toFixed(1)} cm`);
+  }
+}
+async function sensorLoop() {
+  while (true) {
+    if (!sensorBase) {
+      for (const b of SENSOR_BASES) { try { if ((await fetchT(b + "/status", 2500)).ok) { sensorBase = b; break; } } catch (e) {} }
+      if (!sensorBase) { if (sensorOnline) { sensorOnline = false; addLog("warn", "WiFi sensor lost"); } await sleep(2000); continue; }
+    }
+    try {
+      const d = (await (await fetchT(sensorBase + "/distance", 1500)).json()).cm;
+      if (!sensorOnline) {
+        sensorOnline = true;
+        addLog("info", "Sensor connected over WiFi: " + sensorBase);
+        setComp("sensorBoard", "ok", "online at " + sensorBase.replace("http://",""));
+        setAssistant("Sensor connected — " + sensorBase.replace("http://",""), "ok");
+        pollBoardInfo();
+      }
+      handleDistance(d, "WiFi sensor");
+    } catch (e) { sensorBase = null; }
+    await sleep(120);
+  }
+}
+const usingHat = () => $("camSelect").value === HAT;
+const usingServerCam = () => $("camSelect").value === SERVER_CAM;
+
+// ── Pipeline rendering ──
+function resetSteps() {
+  $("pipelineWrap").innerHTML = STEPS.map(([k, name], i) =>
+    (i > 0 ? `<div class="ps-arrow">›</div>` : "") +
+    `<div class="ps-node" id="ps-${k}">
+      <div class="ps-num">${i + 1}</div>
+      <div class="ps-name">${name}</div>
+      <div class="ps-status" id="pss-${k}">waiting</div>
+    </div>`
+  ).join("");
+
+  $("steps").innerHTML = STEPS.map(([k, name, sub], i) =>
+    `<div class="dstep" id="st-${k}">
+      <div class="top"><div class="num">${i+1}</div>
+      <div class="name">${name}</div>
+      <span class="pill" id="sp-${k}">waiting</span>
+      <span style="color:var(--dim);font-size:11px" id="sm-${k}"></span></div>
+      <div class="sum" id="ss-${k}">${sub}</div>
+      <details><summary>raw</summary><pre id="sd-${k}">-</pre></details>
+    </div>`
+  ).join("");
+}
+
+function setStep(k, status, {ms, summary, detail} = {}) {
+  const node = $("ps-" + k);
+  if (node) {
+    node.className = "ps-node " + status;
+    const st = $("pss-" + k);
+    if (st) st.textContent = status === "running" ? "⟳ running" : status;
+  }
+  const el = $("st-" + k); if (!el) return;
+  el.className = "dstep " + status;
+  const pill = $("sp-" + k);
+  if (pill) { pill.textContent = status; pill.className = "pill " + ({done:"ok",error:"bad",skipped:"warn",running:"run"}[status]||""); }
+  if (ms !== undefined && $("sm-" + k)) $("sm-" + k).textContent = ms + " ms";
+  if (summary && $("ss-" + k)) $("ss-" + k).textContent = summary;
+  if (detail !== undefined && $("sd-" + k)) $("sd-" + k).textContent = JSON.stringify(detail, null, 2);
+}
+
+function summarize(step, d) {
+  if (!d) return undefined;
+  if (d.error) return "Error: " + d.error;
+  if (step === "capture") return `${Math.round(d.bytes / 1024)} KB JPEG`;
+  if (step === "classifier") return `${d.label} — ${(d.confidence*100).toFixed(0)}%${d.demo?" (DEMO)":""}`;
+  if (step === "pv_classifier") {
+    const warn = d.ood_warning ? " ⚠ likely wrong plant" : "";
+    return `${d.label.replace(/_/g," ")} — ${(d.confidence*100).toFixed(0)}%, healthy=${d.healthy}${warn}`;
+  }
+  if (step === "claude") return d.skipped ? "Skipped: no ANTHROPIC_API_KEY" :
+    `${d.healthy ? "Healthy":"Not healthy"}${d.plant_visible===false?" (no plant)":""} — ${d.agrees_with_classifier?"agrees":"disagrees"}`;
+  if (step === "speak") return `"${d.text}"`;
+  if (step === "saved") return `records/history.jsonl (id ${d.id})`;
+}
+
+// ── Log ──
+function addLog(level, msg, t = Date.now()/1000) {
+  const time = new Date(t * 1000).toLocaleTimeString();
+  const div = document.createElement("div");
+  div.className = level;
+  div.innerHTML = `<span class="t">${time}</span> ${msg.replace(/</g,"&lt;")}`;
+  $("log").appendChild(div);
+  $("log").scrollTop = $("log").scrollHeight;
+}
+
+// ── Sensor display ──
+function showDistance(connected, d) {
+  $("pSensor").textContent = connected ? "sensor: " + (sensorOnline||hatOnline ? "WiFi" : "USB") : "sensor: off";
+  $("pSensor").className = "pill " + (connected ? "ok" : "bad");
+  const val = d == null ? "--" : d.toFixed(1);
+  $("dist").innerHTML = val + " <small>cm</small>";
+  $("camDist").textContent = val + " cm";
+  const isTrig = d != null && d < triggerCm;
+  $("dist").style.color = isTrig ? "var(--bad)" : "";
+  $("camDist").className = "cam-dist" + (isTrig ? " trigger" : "");
+  const max = 50;
+  $("barFill").style.width = d == null ? "0" : Math.min(100, d/max*100) + "%";
+  $("barTh").style.left = (triggerCm/max*100) + "%";
+  readings.push(d); if (readings.length > 120) readings.shift();
+  drawSpark();
+}
+function drawSpark() {
+  const c = $("spark"), ctx = c.getContext("2d");
+  c.width = c.clientWidth * devicePixelRatio; c.height = c.clientHeight * devicePixelRatio;
+  const w = c.width, h = c.height, max = 50;
+  ctx.clearRect(0,0,w,h);
+  ctx.strokeStyle="#ef4444"; ctx.setLineDash([3,3]); ctx.lineWidth=1*devicePixelRatio;
+  ctx.beginPath(); const ty=h-triggerCm/max*h; ctx.moveTo(0,ty); ctx.lineTo(w,ty); ctx.stroke(); ctx.setLineDash([]);
+  ctx.strokeStyle="#3b82f6"; ctx.lineWidth=1.5*devicePixelRatio; ctx.beginPath();
+  readings.forEach((d,i) => {
+    if (d==null) return;
+    const x=i/119*w, y=h-Math.min(d,max)/max*h;
+    i && readings[i-1]!=null ? ctx.lineTo(x,y) : ctx.moveTo(x,y);
+  });
+  ctx.stroke();
+}
+
+// ── Hat camera ──
+const sleep = ms => new Promise(r => setTimeout(r,ms));
+async function fetchT(url, ms) {
+  const ctl = new AbortController(); const t = setTimeout(()=>ctl.abort(),ms);
+  try { return await fetch(url,{signal:ctl.signal,cache:"no-store"}); } finally { clearTimeout(t); }
+}
+async function findHat() {
+  for (const b of HAT_BASES) { try { if ((await fetchT(b+"/status",2500)).ok) return b; } catch(e){} }
+  return null;
+}
+async function hatLoop() {
+  while (true) {
+    if (!hatBase) {
+      hatBase = await findHat();
+      if (!hatBase) { if (hatOnline) { hatOnline=false; addLog("warn","Hat camera lost"); setHatcam(null); } await sleep(2000); continue; }
+    }
+    try {
+      const d = (await (await fetchT(hatBase+"/distance",1500)).json()).cm;
+      if (!hatOnline) {
+        hatOnline=true; addLog("info","Hat camera connected: "+hatBase);
+        setHatcam(hatBase+":81/stream");
+        setComp("hatcam","ok","online at "+hatBase.replace("http://",""));
+        setAssistant("Hat camera connected — " + hatBase.replace("http://",""), "ok");
+        pollBoardInfo();
+      }
+      if (!sensorOnline) handleDistance(d,"hat camera");
+    } catch(e) { hatBase=null; }
+    await sleep(150);
+  }
+}
+
+// ── Components ──
+const comp = {
+  hatcam:        {name:"Hat camera board",             state:"bad",  info:"searching…"},
+  sensorBoard:   {name:"Sensor board",                 state:"bad",  info:"searching…"},
+  ultrasonic:    {name:"Ultrasonic sensor",            state:"bad",  info:"no reading yet"},
+  speaker:       {name:"Speaker (sensor board)",       state:"warn", info:"not tested yet"},
+  classifier:    {name:"Pumpkin CNN (5 classes)",      state:"warn", info:"checking…"},
+  pv_classifier: {name:"PlantVillage CNN (15 classes)",state:"warn", info:"checking…"},
+  claude:        {name:"Claude",                       state:"warn", info:"checking…"},
+};
+const compButtons = {
+  hatcam:      [["Blink LED",()=>blink("Hat camera",hatBase,HAT_BASES)],["Test photo",()=>takeAndAnalyze("component test")]],
+  sensorBoard: [["Blink LED",()=>blink("Sensor board",sensorBase,SENSOR_BASES)]],
+  speaker:     [["Beep",beepSpeaker],["Say test",()=>speakOnHat("Hello, I am your plant health hat.")]],
+};
+function setComp(key, state, info) { comp[key].state=state; comp[key].info=info; renderComps(); }
+function renderComps() {
+  $("comps").innerHTML = Object.entries(comp).map(([k,c])=>
+    `<div class="comp"><div class="top"><span class="dot ${c.state}"></span>${c.name}</div>
+     <div class="info">${c.info}</div>
+     <div class="row">${(compButtons[k]||[]).map(([label],i)=>`<button data-k="${k}" data-i="${i}">${label}</button>`).join("")}</div></div>`
+  ).join("");
+  $("comps").querySelectorAll("button").forEach(b=>b.onclick=()=>compButtons[b.dataset.k][b.dataset.i][1]());
+}
+function showDevices() {
+  if (!hatOnline) setComp("hatcam","bad","not found (powered? on hotspot?)");
+  if (!sensorOnline) setComp("sensorBoard","bad","not found (powered? on hotspot?)");
+}
+async function pollBoardInfo() {
+  for (const [key,base,online] of [["hatcam",hatBase,hatOnline],["sensorBoard",sensorBase,sensorOnline]]) {
+    if (!online||!base||speaking) continue;
+    try {
+      const st = await (await fetchT(base+"/status",2500)).json();
+      const sig = st.rssi>-60?"strong":st.rssi>-75?"OK":"weak";
+      setComp(key,"ok",`online at ${st.ip} — WiFi ${sig} (${st.rssi} dBm)`);
+    } catch(e) {}
+  }
+}
+async function blink(name,current,bases) {
+  for (const b of current?[current]:bases) {
+    try { const r=await fetchT(b+"/blink",3000); if(r.ok){addLog("info",`${name}: LED blinking`);return;} } catch(e){}
+  }
+  addLog("error",`${name}: no answer`);
+}
+async function beepSpeaker() {
+  for (const b of sensorBase?[sensorBase]:SENSOR_BASES) {
+    try { if((await fetchT(b+"/beep",4000)).ok){addLog("info","Speaker beeped");setComp("speaker","ok","beeped — did you hear it?");return;}} catch(e){}
+  }
+  addLog("error","Speaker not reachable"); setComp("speaker","bad","not reachable");
+}
+setInterval(showDevices, 1000);
+setInterval(pollBoardInfo, 5000);
+
+// ── Camera ──
+async function listCameras() {
+  const devs = (await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==="videoinput");
+  const cur = $("camSelect").value;
+  $("camSelect").innerHTML =
+    (hatStream?`<option value="${HAT}">Hat camera (WiFi)</option>`:"") +
+    (serverCamReady?`<option value="${SERVER_CAM}">Laptop camera (server)</option>`:"") +
+    devs.map((d,i)=>`<option value="${d.deviceId}">${d.label||"Camera "+(i+1)}</option>`).join("");
+  const usb = devs.find(d=>/usb/i.test(d.label));
+  if (![...$("camSelect").options].some(o=>o.value===cur))
+    $("camSelect").value = hatStream?HAT:serverCamReady?SERVER_CAM:(usb?usb.deviceId:devs[0]?.deviceId||"");
+  showLiveView();
+}
+function showLiveView() {
+  const isHat=usingHat(),isServer=usingServerCam();
+  $("video").style.display = (!isHat&&!isServer)?"block":"none";
+  $("hatStream").style.display = isHat?"block":"none";
+  $("serverStream").style.display = isServer?"block":"none";
+  if (isHat&&$("hatStream").dataset.src!==hatStream){$("hatStream").src=hatStream;$("hatStream").dataset.src=hatStream;}
+  if (!isHat){$("hatStream").removeAttribute("src");$("hatStream").dataset.src="";}
+  if (isServer){$("serverStream").src="/webcam/stream";$("pCam").textContent="camera: laptop";$("pCam").className="pill ok";}
+  if (!isServer){$("serverStream").removeAttribute("src");}
+  if (isHat){$("pCam").textContent="camera: hat";$("pCam").className="pill ok";}
+}
+async function setHatcam(stream) {
+  hatStream=stream; await listCameras();
+  if (stream){$("camSelect").value=HAT;showLiveView();}
+}
+async function checkServerCam() {
+  try {
+    const d=await(await fetch("/api/webcam/status")).json();
+    if(d.ready!==serverCamReady){serverCamReady=d.ready;await listCameras();if(serverCamReady)addLog("info","Server webcam ready");}
+  } catch(e){}
+}
+setInterval(checkServerCam,3000);
+async function startCamera(deviceId) {
+  if (deviceId===HAT){showLiveView();return;}
+  const old=$("video").srcObject; if(old) old.getTracks().forEach(t=>t.stop());
+  try {
+    const stream=await navigator.mediaDevices.getUserMedia({
+      video:deviceId?{deviceId:{exact:deviceId},width:1280,height:720}:{width:1280,height:720}});
+    $("video").srcObject=stream;
+    const label=stream.getVideoTracks()[0].label;
+    $("pCam").textContent="camera: "+label; $("pCam").className="pill ok";
+    addLog("info","Webcam on: "+label);
+  } catch(e) {
+    $("pCam").textContent="camera: blocked"; $("pCam").className="pill bad";
+    addLog("error","Webcam error: "+e.message);
+  }
+}
+async function grabFrame() {
+  if (usingHat()&&hatBase) {
+    try { const r=await fetchT(hatBase+"/capture",10000); if(r.ok) return await r.blob(); } catch(e){}
+    return null;
+  }
+  if (usingServerCam()) {
+    try { const r=await fetchT("/webcam/capture",5000); if(r.ok) return await r.blob(); } catch(e){}
+    return null;
+  }
+  const v=$("video"); if(!v.videoWidth) return null;
+  const c=document.createElement("canvas"); c.width=v.videoWidth; c.height=v.videoHeight;
+  c.getContext("2d").drawImage(v,0,0);
+  return new Promise(res=>c.toBlob(res,"image/jpeg",0.85));
+}
+
+// ── Show scanning state ──
+function showScanningState() {
+  $("scanPrompt").style.display="none";
+  $("verdictResult").style.display="block";
+  $("verdictEmoji").textContent="⏳";
+  $("verdict").textContent="Scanning…";
+  $("verdict").className="";
+  $("spoken").textContent="";
+  $("diag").textContent="";
+  $("classifierBanner").style.display="none";
+  $("verdictWidget").className="verdict-area";
+}
+
+// ── Pipeline run ──
+async function takeAndAnalyze(source) {
+  if (busy){addLog("warn","Busy — ignoring");return;}
+  busy=true; $("pBusy").textContent="processing"; $("pBusy").className="pill run";
+  resetSteps(); showScanningState();
+  setAssistant("Capturing photo…", "run");
+  setStep("trigger","done",{summary:"Triggered: "+source,detail:{source}});
+  setStep("capture","running");
+  const blob=await grabFrame();
+  if (!blob) {
+    const msg=usingHat()?"No photo from hat":usingServerCam()?"No server webcam photo":"No webcam frame";
+    setStep("capture","error",{summary:msg});
+    addLog("error",msg);
+    setAssistant(msg, "bad");
+    $("verdict").textContent="No photo"; $("verdictEmoji").textContent="📷";
+    busy=false; $("pBusy").textContent="idle"; $("pBusy").className="pill"; return;
+  }
+  $("shot").src=URL.createObjectURL(blob);
+  $("shot").classList.remove("flash"); void $("shot").offsetWidth; $("shot").classList.add("flash");
+  $("shotInfo").textContent=new Date().toLocaleTimeString()+" — "+source;
+  $("video").classList.add("flash"); setTimeout(()=>$("video").classList.remove("flash"),400);
+  setAssistant("Analysing with AI…", "run");
+  const fd=new FormData(); fd.append("image",blob,"shot.jpg"); fd.append("source",source);
+  try {
+    const r=await fetch("/api/analyze",{method:"POST",body:fd});
+    if (!r.ok) throw new Error((await r.json()).detail||r.statusText);
+  } catch(e) { addLog("error","Analyze failed: "+e.message); setAssistant("Analysis failed: "+e.message,"bad"); }
+  busy=false; $("pBusy").textContent="idle"; $("pBusy").className="pill";
+}
+
+// ── Speech ──
+function loadVoices() {
+  voices=speechSynthesis.getVoices().filter(v=>v.lang.startsWith("en"));
+  $("voiceSelect").innerHTML=voices.map((v,i)=>`<option value="${i}">${v.name}</option>`).join("");
+  const nice=voices.findIndex(v=>/Samantha|Google US English|Daniel/.test(v.name));
+  if (nice>=0) $("voiceSelect").value=nice;
+}
+async function speakOnHat(text) {
+  if (!sensorBase){addLog("error","Hat speaker not connected");speakLaptop(text);return;}
+  setStep("speak","running",{summary:`Hat speaker: "${text}"`});
+  speaking=true;
+  try {
+    const t=await(await fetch("/api/tts",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({text})})).json();
+    const r=await(await fetchT(sensorBase+"/say?url="+encodeURIComponent(t.url),20000)).json();
+    setStep("speak","done",{summary:`Hat: ${r.result}`});
+    setComp("speaker",r.result.startsWith("played")?"ok":"bad",r.result);
+  } catch(e) {
+    addLog("error","Hat speaker failed, using laptop voice");
+    setComp("speaker","bad","failed: "+e.message);
+    speakLaptop(text);
+  } finally { speaking=false; lastTrig=Date.now(); }
+}
+async function speakSerial(text) {
+  setStep("speak","running",{summary:`Serial: "${text}"`});
+  try {
+    const r=await fetch("/api/speak",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({text})});
+    if (r.ok){setStep("speak","done",{summary:`Serial: "${text}"`});addLog("info",`Serial: "${text}"`);}
+    else{const d=await r.json().catch(()=>({}));addLog("warn","Serial failed, using browser");speakLaptop(text);}
+  } catch(e){addLog("warn","Serial unreachable");speakLaptop(text);}
+}
+function speak(text) {
+  if (!text) return;
+  if (comp.speaker?.state==="ok") return speakSerial(text);
+  if ($("hatSpeaker").checked&&sensorOnline) return speakOnHat(text);
+  speakLaptop(text);
+}
+function speakLaptop(text) {
+  speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance(text);
+  if (voices[$("voiceSelect").value]) u.voice=voices[$("voiceSelect").value];
+  u.onstart=()=>setStep("speak","running",{summary:`Speaking: "${text}"`});
+  u.onend  =()=>setStep("speak","done",   {summary:`Spoke: "${text}"`});
+  u.onerror=e =>setStep("speak","error",  {summary:"Speech error: "+e.error});
+  speechSynthesis.speak(u);
+}
+let lastSpoken="";
+
+// ── Results ──
+function showResult(rec) {
+  const h=rec.healthy;
+  $("scanPrompt").style.display="none";
+  $("verdictResult").style.display="block";
+  if (h===true) {
+    $("verdictEmoji").textContent="✅";
+    $("verdict").textContent="Healthy";
+    $("verdict").className="ok";
+    $("verdictWidget").className="verdict-area ok";
+    setAssistant("Your plant looks healthy.", "ok");
+  } else if (h===false) {
+    $("verdictEmoji").textContent="⚠️";
+    $("verdict").textContent="Not healthy";
+    $("verdict").className="bad";
+    $("verdictWidget").className="verdict-area bad";
+    setAssistant("Disease detected — check the diagnosis below.", "bad");
+  } else {
+    $("verdictEmoji").textContent="🔍";
+    $("verdict").textContent="Unsure";
+    $("verdict").className="";
+    $("verdictWidget").className="verdict-area";
+    setAssistant("Couldn't determine health — try a clearer photo.", "");
+  }
+  $("spoken").textContent=rec.spoken||"";
+  const cnn=rec.classifier||{}, pv=rec.pv_classifier||{};
+  const cnnStr=cnn.label?`Pumpkin CNN: ${cnn.label} (${(cnn.confidence*100).toFixed(0)}%)`:"";
+  const pvStr =pv.label ?`PV CNN: ${pv.label.replace(/_/g," ")} (${(pv.confidence*100).toFixed(0)}%, healthy=${pv.healthy})`:"";
+  $("diag").textContent=[rec.claude?.diagnosis,cnnStr,pvStr].filter(Boolean).join("   |   ");
+  lastSpoken=rec.spoken;
+  if (rec.pv_classifier?.all_scores) renderScores("pvScores",rec.pv_classifier.all_scores);
+  if (rec.classifier?.all_scores)    renderScores("cnnScores",rec.classifier.all_scores);
+  const pvHealthy=rec.pv_classifier?.healthy;
+  const cnnHealthy=(rec.classifier?.label||"").toLowerCase().includes("healthy");
+  const pvOod=rec.pv_classifier?.ood_warning;
+  const disagree=pvHealthy!==undefined&&pvHealthy!==null&&pvHealthy!==cnnHealthy;
+  const banner=$("classifierBanner");
+  if (pvOod) {
+    banner.style.cssText="display:block;background:#221500;border:1px solid var(--warn);color:var(--warn);padding:8px 12px;border-radius:8px;font-size:12px;line-height:1.5;margin-top:10px";
+    banner.textContent="⚠ PlantVillage CNN only knows tomatoes, peppers, potatoes — trust Claude and Pumpkin CNN for other plants.";
+  } else if (disagree) {
+    banner.style.cssText="display:block;background:#0f0820;border:1px solid #a371f7;color:#a371f7;padding:8px 12px;border-radius:8px;font-size:12px;line-height:1.5;margin-top:10px";
+    banner.textContent="⚡ Classifiers disagree — Claude's verdict takes priority.";
+  } else { banner.style.display="none"; }
+}
+
+// ── History ──
+async function loadHistory() {
+  const recs=await(await fetch("/api/history")).json();
+  if (!recs.length){$("historyEmpty").style.display="";return;}
+  $("historyEmpty").style.display="none";
+  $("history").innerHTML=recs.map(rec=>{
+    const cls=rec.healthy===true?"ok":rec.healthy===false?"bad":"";
+    const word=rec.healthy===true?"Healthy":rec.healthy===false?"Sick":"?";
+    return `<div class="hcard">
+      <img src="${rec.photo}" loading="lazy" class="${cls}" title="${rec.time}">
+      <div class="hc-label ${cls}">${word}</div>
+    </div>`;
+  }).join("");
+}
+
+// ── Server events ──
+function connectEvents() {
+  const es=new EventSource("/api/events");
+  es.onopen =()=>{$("pServer").textContent="server: connected";$("pServer").className="pill ok";setAssistant("Connected — ready to scan.","ok");};
+  es.onerror=()=>{$("pServer").textContent="server: disconnected";$("pServer").className="pill bad";setAssistant("Server disconnected","bad");};
+  es.onmessage=m=>{
+    const e=JSON.parse(m.data);
+    if (e.kind==="hello") {
+      const s=e.status; triggerCm=s.trigger_cm; $("thText").textContent=triggerCm;
+      $("pClaude").textContent=s.claude_ready?"Claude: "+s.claude_model:"Claude: no key";
+      $("pClaude").className="pill "+(s.claude_ready?"ok":"warn");
+      cooldownS=s.cooldown_s;
+      setComp("classifier",s.classifier_demo?"warn":"ok",
+        s.classifier_demo?"DEMO MODE":"pumpkin model loaded (5 classes)");
+      setComp("pv_classifier",s.pv_classifier_demo?"warn":"ok",
+        s.pv_classifier_demo?"model not found":"model_plantvillage.h5 (15 classes)");
+      setComp("claude",s.claude_ready?"ok":"bad",
+        s.claude_ready?"connected — "+s.claude_model:"no ANTHROPIC_API_KEY");
+      setComp("speaker",s.speaker_ready?"ok":"warn",
+        s.speaker_ready?"serial speaker ("+(s.speaker_port||"usbserial")+")":"not connected");
+      monitoringOn=s.monitoring_enabled!==false;
+      updateMonBtns();
+      if (!hatOnline) showDistance(s.sensor_connected,s.distance);
+    }
+    else if (e.kind==="sensor") { if(!hatOnline&&!sensorOnline) showDistance(e.connected,e.distance); }
+    else if (e.kind==="log") addLog(e.level,e.msg,e.t);
+    else if (e.kind==="monitoring") { monitoringOn=e.enabled; updateMonBtns(); }
+    else if (e.kind==="trigger") {
+      if (e.server_capture) {
+        resetSteps(); showScanningState();
+        setStep("trigger","done",{summary:"Triggered: "+e.source,detail:e});
+        setStep("capture","running");
+      } else takeAndAnalyze(e.source);
+    }
+    else if (e.kind==="step") {
+      setStep(e.step,e.status,{ms:e.ms,summary:summarize(e.step,e.detail),detail:e.detail});
+      if (e.step==="capture"&&e.detail?.photo) {
+        $("shot").src=e.detail.photo; $("shotInfo").textContent=new Date().toLocaleTimeString()+" — "+e.run;
+      }
+      if (e.step==="pv_classifier"&&e.status==="done"&&e.detail?.all_scores) renderScores("pvScores",e.detail.all_scores);
+      if (e.step==="classifier"   &&e.status==="done"&&e.detail?.all_scores) renderScores("cnnScores",e.detail.all_scores);
+      if (e.step==="speak"&&$("autoSpeak").checked) speak(e.detail.text);
+      // Update assistant status per step
+      const stepLabels={capture:"Taking photo…",classifier:"Running Pumpkin CNN…",pv_classifier:"Running PlantVillage CNN…",claude:"Asking Claude…",speak:"Speaking result…",saved:"Saving record…"};
+      if (e.status==="running"&&stepLabels[e.step]) setAssistant(stepLabels[e.step],"run");
+    }
+    else if (e.kind==="run_done") { showResult(e.record); loadHistory(); }
+  };
+}
+
+// ── Monitoring buttons ──
+function updateMonBtns() {
+  $("stopBtn").disabled = !monitoringOn;
+  $("monBtn").disabled  =  monitoringOn;
+  $("stopBtn").style.opacity = monitoringOn ? "1" : ".4";
+  $("monBtn").style.opacity  = monitoringOn ? ".4" : "1";
+}
+
+// ── Upload ──
+let uploadedBlob=null;
+$("uploadInput").addEventListener("change",()=>{
+  const file=$("uploadInput").files[0];
+  if (!file||!file.type.startsWith("image/")) return;
+  uploadedBlob=file;
+  $("uploadPreview").src=URL.createObjectURL(file);
+  $("uploadPreviewWrap").style.display="flex";
+});
+$("uploadAnalyseBtn").addEventListener("click",async()=>{
+  if (!uploadedBlob||busy) return;
+  busy=true; $("pBusy").textContent="processing"; $("pBusy").className="pill run";
+  $("uploadAnalyseBtn").disabled=true;
+  resetSteps(); showScanningState();
+  setStep("trigger","done",{summary:"Uploaded: "+uploadedBlob.name});
+  setStep("capture","running");
+  $("shot").src=URL.createObjectURL(uploadedBlob);
+  $("shot").classList.remove("flash"); void $("shot").offsetWidth; $("shot").classList.add("flash");
+  $("shotInfo").textContent=new Date().toLocaleTimeString()+" — "+uploadedBlob.name;
+  setStep("capture","done",{summary:uploadedBlob.name+" ("+Math.round(uploadedBlob.size/1024)+" KB)"});
+  const fd=new FormData(); fd.append("image",uploadedBlob,uploadedBlob.name); fd.append("source","upload: "+uploadedBlob.name);
+  try {
+    const r=await fetch("/api/analyze",{method:"POST",body:fd});
+    if (!r.ok) throw new Error((await r.json()).detail||r.statusText);
+  } catch(e){addLog("error","Upload analyse failed: "+e.message);}
+  busy=false; $("pBusy").textContent="idle"; $("pBusy").className="pill";
+  $("uploadAnalyseBtn").disabled=false;
+});
+
+// ── Score bars ──
+function renderScores(containerId,scores) {
+  const el=$(containerId); if(!el) return;
+  const sorted=Object.entries(scores).sort((a,b)=>b[1]-a[1]);
+  const max=sorted[0]?.[1]||1;
+  el.innerHTML=sorted.map(([label,score])=>{
+    const pct=Math.round(score*100),barPct=Math.round((score/max)*100),isTop=score===max;
+    return `<div class="score-row">
+      <div class="score-label" style="color:${isTop?"var(--text)":"var(--dim)"}">${label.replace(/_/g," ")}</div>
+      <div class="score-track"><div class="score-fill" style="width:${barPct}%;background:${isTop?"var(--accent)":"#2d3545"}"></div></div>
+      <div class="score-pct">${pct}%</div>
+    </div>`;
+  }).join("");
+}
+
+// ── Debug state ticker ──
+function updateDebugState() {
+  const el=$("dbState"); if(!el) return;
+  fetch("/api/status").then(r=>r.json()).then(s=>{
+    el.textContent=JSON.stringify({
+      busy:s.busy,monitoring:s.monitoring_enabled,
+      triggers:s.trigger_count,runs:s.run_count,
+      distance_cm:s.distance!=null?s.distance.toFixed(1):null,
+      sensor:s.sensor_connected
+    },null,2);
+  }).catch(()=>{});
+}
+setInterval(updateDebugState,2000);
+
+// ── Burst ──
+let burstRunning=false;
+async function runBurst() {
+  const n=Math.min(10,Math.max(2,parseInt($("burstCount").value)||3));
+  if (busy||burstRunning) return;
+  burstRunning=true; busy=true;
+  $("pBusy").textContent="burst"; $("pBusy").className="pill run";
+  $("burstBtn").disabled=true;
+  $("burstPanel").style.display="";
+  $("burstGrid").innerHTML="";
+  $("burstSummary").textContent=`Capturing ${n} frames…`;
+  const frames=[];
+  for (let i=0;i<n;i++) {
+    const blob=await grabFrame();
+    const url=blob?URL.createObjectURL(blob):null;
+    frames.push({blob,url});
+    const card=document.createElement("div");
+    card.style.cssText="background:#0a0f18;border:1px solid var(--border);border-radius:8px;overflow:hidden;width:110px;flex:none";
+    card.innerHTML=`<img src="${url||""}" style="width:100%;aspect-ratio:4/3;object-fit:cover;display:block"><div style="padding:4px 6px"><span id="burst-st-${i}" class="pill" style="font-size:10px">captured</span></div>`;
+    $("burstGrid").appendChild(card);
+    if (i<n-1) await sleep(250);
+  }
+  $("burstSummary").textContent=`Analysing ${frames.filter(f=>f.blob).length} frames…`;
+  const results=[];
+  for (let i=0;i<frames.length;i++) {
+    const {blob}=frames[i],stEl=$(`burst-st-${i}`);
+    if (!blob){stEl.textContent="no frame";stEl.className="pill bad";continue;}
+    stEl.textContent="analysing…";stEl.className="pill run";
+    try {
+      const fd=new FormData(); fd.append("image",blob,"shot.jpg"); fd.append("source",`burst ${i+1}/${n}`);
+      const r=await fetch("/api/analyze",{method:"POST",body:fd});
+      if (!r.ok) throw new Error((await r.json()).detail||r.statusText);
+      const rec=await r.json(); results.push({i,rec});
+      const h=rec.healthy;
+      stEl.textContent=h===true?"Healthy":h===false?"Not healthy":"Unsure";
+      stEl.className="pill "+(h===true?"ok":h===false?"bad":"warn");
+    } catch(e){stEl.textContent="error";stEl.className="pill bad";}
+  }
+  if (results.length) {
+    const healthy=results.filter(r=>r.rec.healthy===true).length;
+    const sick=results.filter(r=>r.rec.healthy===false).length;
+    const majority=healthy>sick?"Healthy":sick>healthy?"Not healthy":"Mixed";
+    const colour=majority==="Healthy"?"var(--ok)":majority==="Not healthy"?"var(--bad)":"var(--warn)";
+    $("burstSummary").innerHTML=`Burst: <span style="color:${colour};font-weight:800">${majority}</span> — ${healthy}/${results.length} healthy`;
+    addLog("info",`Burst done: ${healthy}/${results.length} healthy`);
+  } else { $("burstSummary").textContent="Burst failed"; }
+  busy=false;burstRunning=false;
+  $("pBusy").textContent="idle";$("pBusy").className="pill";
+  $("burstBtn").disabled=false;
+}
+
+// ── Start ──
+$("startBtn").onclick=async()=>{
+  $("overlay").remove();
+  speechSynthesis.speak(new SpeechSynthesisUtterance("")); // unlock audio
+  await startCamera();
+  await listCameras();
+  const chosen=$("camSelect").value;
+  const cur=$("video").srcObject?.getVideoTracks()[0]?.getSettings().deviceId;
+  if (chosen&&chosen!==cur) await startCamera(chosen);
+};
+$("camSelect").onchange=()=>{showLiveView();if(!usingHat())startCamera($("camSelect").value);};
+$("snapBtn").onclick=()=>takeAndAnalyze("dashboard button");
+$("burstBtn").onclick=()=>runBurst();
+$("simBtn").onclick=()=>hatOnline?takeAndAnalyze("simulated hand wave"):fetch("/api/trigger",{method:"POST"});
+$("speakBtn").onclick=()=>speak(lastSpoken);
+speechSynthesis.onvoiceschanged=loadVoices; loadVoices();
+
+renderComps(); resetSteps(); connectEvents(); loadHistory(); hatLoop(); sensorLoop();
+fetch("/api/log").then(r=>r.json()).then(l=>l.forEach(e=>addLog(e.level,e.msg,e.t)));
+updateMonBtns();
+</script>
+</body>
+</html>

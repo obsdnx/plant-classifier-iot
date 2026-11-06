@@ -1,54 +1,62 @@
+import torch
 import numpy as np
 from PIL import Image
 from pathlib import Path
+from io import BytesIO
+import random
+from transformers import AutoImageProcessor, AutoModelForImageClassification
 
-try:
-    from ai_edge_litert.interpreter import Interpreter
-except ImportError:
-    try:
-        from tflite_runtime.interpreter import Interpreter
-    except ImportError:
-        raise SystemExit(
-            "ERROR: No TFLite runtime found.\n"
-            "Run:  pip3 install ai-edge-litert\n"
-            "  or: pip3 install tflite-runtime"
-        )
-
-MODEL_PATH = Path(__file__).parent / "pumpkin.tflite"
+MODEL_DIR = Path(__file__).parent / "model"
 LABELS_PATH = Path(__file__).parent / "labels.txt"
 
-if not MODEL_PATH.exists():
-    raise SystemExit(
-        f"ERROR: Model file not found: {MODEL_PATH}\n"
-        "Copy pumpkin.tflite into the computer/ folder."
-    )
+DEMO_MODE = not MODEL_DIR.exists()
 
-labels = LABELS_PATH.read_text().strip().splitlines()
+_model = None
+_extractor = None
+_labels = None
 
-interpreter = Interpreter(model_path=str(MODEL_PATH))
-interpreter.allocate_tensors()
-_inp = interpreter.get_input_details()[0]
-_out = interpreter.get_output_details()[0]
 
-# Derive expected image size from model metadata
-_shape = _inp["shape"]  # e.g. [1, 224, 224, 3]
-INPUT_SIZE = (_shape[1], _shape[2])
+def _load():
+    global _model, _extractor, _labels
+    print("Loading model (first request)...")
+    _extractor = AutoImageProcessor.from_pretrained(str(MODEL_DIR))
+    _model = AutoModelForImageClassification.from_pretrained(str(MODEL_DIR))
+    _model.eval()
+    _labels = LABELS_PATH.read_text().strip().splitlines()
+    print(f"Model ready. {len(_labels)} classes.")
 
 
 def classify(image_bytes: bytes) -> dict:
-    """Return label, confidence (0–1), and all raw scores."""
-    from io import BytesIO
-    img = Image.open(BytesIO(image_bytes)).convert("RGB").resize(INPUT_SIZE)
-    x = np.array(img, dtype=np.float32) / 255.0
-    x = np.expand_dims(x, axis=0)
+    global _model, _extractor, _labels
 
-    interpreter.set_tensor(_inp["index"], x)
-    interpreter.invoke()
-    scores = interpreter.get_tensor(_out["index"])[0]
+    if DEMO_MODE:
+        labels = LABELS_PATH.read_text().strip().splitlines()
+        scores = [random.random() for _ in labels]
+        total = sum(scores)
+        scores = [s / total for s in scores]
+        i = scores.index(max(scores))
+        return {
+            "label": labels[i],
+            "confidence": round(scores[i], 4),
+            "all_scores": {labels[j]: round(scores[j], 4) for j in range(len(labels))},
+            "demo": True,
+        }
 
-    i = int(np.argmax(scores))
+    if _model is None:
+        _load()
+
+    img = Image.open(BytesIO(image_bytes)).convert("RGB")
+    inputs = _extractor(images=img, return_tensors="pt")
+
+    with torch.no_grad():
+        logits = _model(**inputs).logits
+
+    probs = torch.softmax(logits, dim=-1)[0].tolist()
+    i = int(torch.argmax(logits, dim=-1).item())
+
     return {
-        "label": labels[i],
-        "confidence": float(scores[i]),
-        "all_scores": {labels[j]: float(scores[j]) for j in range(len(labels))},
+        "label": _labels[i],
+        "confidence": round(probs[i], 4),
+        "all_scores": {_labels[j]: round(probs[j], 4) for j in range(len(_labels))},
+        "demo": False,
     }

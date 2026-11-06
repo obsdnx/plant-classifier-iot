@@ -1,8 +1,12 @@
 fastapi>=0.110.0
 uvicorn[standard]>=0.29.0
+python-multipart>=0.0.9
 pillow>=10.0.0
 numpy>=1.24.0
 requests>=2.31.0
-# TFLite runtime — install ONE of these depending on your platform:
-# pip install ai-edge-litert          (preferred, Google's current package)
-# pip install tflite-runtime          (older, still works)
+torch>=2.0.0
+torchvision>=0.15.0
+transformers>=4.35.0
+huggingface_hub>=0.20.0
+anthropic>=2.4.0
+tensorflow>=2.16.0

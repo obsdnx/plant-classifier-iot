@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Plant Health Classifier</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #f0f4f0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px;
+      color: #1a1a1a;
+    }
+
+    h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #2d6a2d;
+      margin-bottom: 6px;
+    }
+
+    .subtitle {
+      color: #666;
+      font-size: 0.9rem;
+      margin-bottom: 32px;
+    }
+
+    .drop-zone {
+      width: 100%;
+      max-width: 520px;
+      border: 2px dashed #a8c8a8;
+      border-radius: 16px;
+      background: #fff;
+      padding: 40px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+    }
+
+    .drop-zone.over {
+      border-color: #2d6a2d;
+      background: #f0f9f0;
+    }
+
+    .drop-zone input[type="file"] {
+      display: none;
+    }
+
+    .drop-zone .icon { font-size: 2.5rem; margin-bottom: 12px; }
+
+    .drop-zone p {
+      color: #555;
+      font-size: 0.95rem;
+    }
+
+    .drop-zone .hint {
+      font-size: 0.8rem;
+      color: #999;
+      margin-top: 6px;
+    }
+
+    #preview-wrap {
+      width: 100%;
+      max-width: 520px;
+      margin-top: 24px;
+      display: none;
+    }
+
+    #preview {
+      width: 100%;
+      max-height: 320px;
+      object-fit: cover;
+      border-radius: 12px;
+      border: 1px solid #dde8dd;
+    }
+
+    #classify-btn {
+      margin-top: 16px;
+      width: 100%;
+      padding: 14px;
+      font-size: 1rem;
+      font-weight: 600;
+      background: #2d6a2d;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    #classify-btn:hover { background: #245524; }
+    #classify-btn:disabled { background: #999; cursor: default; }
+
+    #result {
+      width: 100%;
+      max-width: 520px;
+      margin-top: 24px;
+      display: none;
+    }
+
+    .result-card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 24px;
+      border: 1px solid #dde8dd;
+    }
+
+    .result-label {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #2d6a2d;
+      margin-bottom: 8px;
+    }
+
+    .result-label.disease { color: #b85c00; }
+    .result-label.unsure  { color: #777; }
+
+    .confidence-bar-wrap {
+      background: #eee;
+      border-radius: 99px;
+      height: 10px;
+      margin-bottom: 16px;
+      overflow: hidden;
+    }
+
+    .confidence-bar {
+      height: 100%;
+      border-radius: 99px;
+      background: #2d6a2d;
+      transition: width 0.6s ease;
+    }
+
+    .confidence-bar.disease { background: #b85c00; }
+    .confidence-bar.unsure  { background: #aaa; }
+
+    .confidence-label {
+      font-size: 0.82rem;
+      color: #888;
+      margin-bottom: 4px;
+    }
+
+    .explanation {
+      font-size: 0.95rem;
+      line-height: 1.6;
+      color: #333;
+      border-top: 1px solid #eee;
+      padding-top: 16px;
+      margin-top: 4px;
+    }
+
+    .demo-badge {
+      display: inline-block;
+      background: #fff3cd;
+      color: #856404;
+      font-size: 0.75rem;
+      padding: 2px 8px;
+      border-radius: 99px;
+      margin-bottom: 12px;
+      border: 1px solid #ffc107;
+    }
+
+    .spinner {
+      display: none;
+      width: 28px; height: 28px;
+      border: 3px solid #ddd;
+      border-top-color: #2d6a2d;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin: 0 auto;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<h1>🌿 Plant Health Classifier</h1>
+<p class="subtitle">Upload a leaf photo to detect disease</p>
+
+<div class="drop-zone" id="drop-zone">
+  <input type="file" id="file-input" accept="image/*" />
+  <div class="icon">📷</div>
+  <p>Drag &amp; drop a leaf photo here</p>
+  <p class="hint">or click to browse</p>
+</div>
+
+<div id="preview-wrap">
+  <img id="preview" alt="Leaf preview" />
+  <button id="classify-btn">Classify Leaf</button>
+</div>
+
+<div id="result">
+  <div class="result-card">
+    <div class="spinner" id="spinner"></div>
+    <div id="result-inner"></div>
+  </div>
+</div>
+
+<script>
+  const dropZone   = document.getElementById('drop-zone');
+  const fileInput  = document.getElementById('file-input');
+  const previewWrap= document.getElementById('preview-wrap');
+  const preview    = document.getElementById('preview');
+  const btn        = document.getElementById('classify-btn');
+  const resultDiv  = document.getElementById('result');
+  const resultInner= document.getElementById('result-inner');
+  const spinner    = document.getElementById('spinner');
+
+  let selectedFile = null;
+
+  dropZone.addEventListener('click', () => fileInput.click());
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('over'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('over'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('over');
+    loadFile(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener('change', () => loadFile(fileInput.files[0]));
+
+  function loadFile(file) {
+    if (!file || !file.type.startsWith('image/')) return;
+    selectedFile = file;
+    preview.src = URL.createObjectURL(file);
+    previewWrap.style.display = 'block';
+    resultDiv.style.display = 'none';
+    resultInner.innerHTML = '';
+  }
+
+  btn.addEventListener('click', async () => {
+    if (!selectedFile) return;
+    btn.disabled = true;
+    btn.textContent = 'Classifying…';
+    resultDiv.style.display = 'block';
+    resultInner.innerHTML = '';
+    spinner.style.display = 'block';
+
+    const fd = new FormData();
+    fd.append('image', selectedFile);
+
+    try {
+      const res  = await fetch('/classify', { method: 'POST', body: fd });
+      const data = await res.json();
+      spinner.style.display = 'none';
+      renderResult(data);
+    } catch (err) {
+      spinner.style.display = 'none';
+      resultInner.innerHTML = `<p style="color:red">Error: ${err.message}</p>`;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Classify Leaf';
+    }
+  });
+
+  function renderResult(data) {
+    const status = data.status;
+    const label  = data.label || 'Unknown';
+    const conf   = Math.round((data.confidence || 0) * 100);
+    const explanation = data.explanation || '';
+    const isDemo = data.demo;
+    const isHealthy = label.toLowerCase().includes('healthy');
+    const cls = status === 'unsure' ? 'unsure' : (isHealthy ? '' : 'disease');
+
+    resultInner.innerHTML = `
+      ${isDemo ? '<div class="demo-badge">⚠️ Demo mode — no model loaded</div>' : ''}
+      <div class="result-label ${cls}">${label.replace(/_/g, ' ')}</div>
+      <div class="confidence-label">Confidence: ${conf}%</div>
+      <div class="confidence-bar-wrap">
+        <div class="confidence-bar ${cls}" style="width:${conf}%"></div>
+      </div>
+      <div class="explanation">${explanation}</div>
+    `;
+  }
+</script>
+</body>
+</html>
