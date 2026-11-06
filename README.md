@@ -58,6 +58,21 @@ esp32/
 
 ---
 
+## Network architecture
+
+All devices connect to the **same WiFi** (e.g. iPhone hotspot). The laptop runs the server; the ESP32s are HTTP endpoints the server calls.
+
+![Architecture diagram showing the laptop server, browser dashboard, ESP32 sensor/speaker, and ESP32-CAM all communicating over WiFi](docs/images/architecture.svg)
+
+| Device | mDNS name | What it does |
+|---|---|---|
+| Laptop :8000 | — | Runs FastAPI, CNNs, Claude AI, TTS |
+| Browser | — | Dashboard — SSE feed, controls, camera view |
+| ESP32 (Freenove) | `hatsensor.local` | Ultrasonic distance + I2S speaker |
+| ESP32-CAM | `hatcam.local` | Photo capture + distance |
+
+---
+
 ## How it works
 
 1. Ultrasonic sensor detects a plant closer than ~40 cm

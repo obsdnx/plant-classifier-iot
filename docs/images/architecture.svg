@@ -1,0 +1,132 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 620" font-family="system-ui, -apple-system, sans-serif">
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#555"/>
+    </marker>
+    <marker id="arrow-blue" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#3b82f6"/>
+    </marker>
+    <marker id="arrow-green" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#16a34a"/>
+    </marker>
+    <marker id="arrow-orange" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#ea580c"/>
+    </marker>
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="115%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#00000022"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="900" height="620" fill="#f8faf5" rx="12"/>
+
+  <!-- Title -->
+  <text x="450" y="38" text-anchor="middle" font-size="20" font-weight="700" fill="#1a3d1a">Plant Health Hat — Network Architecture</text>
+  <text x="450" y="58" text-anchor="middle" font-size="13" fill="#6b7280">All devices on the same WiFi (personal hotspot)</text>
+
+  <!-- WiFi cloud background -->
+  <ellipse cx="450" cy="310" rx="390" ry="220" fill="#e8f5e9" stroke="#a5d6a7" stroke-width="2" stroke-dasharray="8 4"/>
+  <text x="450" y="530" text-anchor="middle" font-size="12" fill="#4caf50" font-weight="600">WiFi Network (e.g. iPhone hotspot)</text>
+
+  <!-- ══════════════════════════════════════
+       LAPTOP (server)  — centre top
+  ════════════════════════════════════════ -->
+  <rect x="310" y="90" width="280" height="150" rx="12" fill="#ffffff" stroke="#16a34a" stroke-width="2" filter="url(#shadow)"/>
+  <rect x="310" y="90" width="280" height="34" rx="12" fill="#16a34a"/>
+  <rect x="310" y="112" width="280" height="12" fill="#16a34a"/>
+  <text x="450" y="113" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">Laptop  :8000</text>
+  <text x="325" y="145" font-size="11.5" fill="#374151">FastAPI server</text>
+  <text x="325" y="162" font-size="11.5" fill="#374151">classifier.py  (MobileNetV2)</text>
+  <text x="325" y="179" font-size="11.5" fill="#374151">classifier_plantvillage.py  (Keras)</text>
+  <text x="325" y="196" font-size="11.5" fill="#374151">hat.py  — pipeline + TTS + speak_wifi</text>
+  <text x="325" y="213" font-size="11.5" fill="#374151">Claude claude-opus-5-5  (Anthropic API ☁)</text>
+
+  <!-- ══════════════════════════════════════
+       BROWSER (dashboard)  — left
+  ════════════════════════════════════════ -->
+  <rect x="40" y="260" width="200" height="120" rx="12" fill="#ffffff" stroke="#3b82f6" stroke-width="2" filter="url(#shadow)"/>
+  <rect x="40" y="260" width="200" height="34" rx="12" fill="#3b82f6"/>
+  <rect x="40" y="282" width="200" height="12" fill="#3b82f6"/>
+  <text x="140" y="283" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">Browser  (Dashboard)</text>
+  <text x="55" y="315" font-size="11.5" fill="#374151">hat.html</text>
+  <text x="55" y="332" font-size="11.5" fill="#374151">Live feed via SSE</text>
+  <text x="55" y="349" font-size="11.5" fill="#374151">Say anything  •  Volume</text>
+  <text x="55" y="366" font-size="11.5" fill="#374151">Trigger scan  •  Camera snap</text>
+
+  <!-- ══════════════════════════════════════
+       ESP32 sensor  — bottom left
+  ════════════════════════════════════════ -->
+  <rect x="70" y="440" width="210" height="120" rx="12" fill="#ffffff" stroke="#ea580c" stroke-width="2" filter="url(#shadow)"/>
+  <rect x="70" y="440" width="210" height="34" rx="12" fill="#ea580c"/>
+  <rect x="70" y="462" width="210" height="12" fill="#ea580c"/>
+  <text x="175" y="463" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">ESP32  hatsensor.local</text>
+  <text x="85" y="496" font-size="11.5" fill="#374151">HC-SR04 ultrasonic</text>
+  <text x="85" y="513" font-size="11.5" fill="#374151">MAX98357A  I2S speaker</text>
+  <text x="85" y="530" font-size="11.5" fill="#374151">GET /distance  •  GET /beep</text>
+  <text x="85" y="547" font-size="11.5" fill="#374151">GET /say?url=…  (plays audio)</text>
+
+  <!-- ══════════════════════════════════════
+       ESP32-CAM  — bottom right
+  ════════════════════════════════════════ -->
+  <rect x="620" y="440" width="210" height="120" rx="12" fill="#ffffff" stroke="#7c3aed" stroke-width="2" filter="url(#shadow)"/>
+  <rect x="620" y="440" width="210" height="34" rx="12" fill="#7c3aed"/>
+  <rect x="620" y="462" width="210" height="12" fill="#7c3aed"/>
+  <text x="725" y="463" text-anchor="middle" font-size="13" font-weight="700" fill="#ffffff">ESP32-CAM  hatcam.local</text>
+  <text x="635" y="496" font-size="11.5" fill="#374151">OV2640 camera</text>
+  <text x="635" y="513" font-size="11.5" fill="#374151">HC-SR04 ultrasonic</text>
+  <text x="635" y="530" font-size="11.5" fill="#374151">GET /capture  •  GET /distance</text>
+  <text x="635" y="547" font-size="11.5" fill="#374151">:81/stream  (MJPEG live)</text>
+
+  <!-- ══════════════════════════════════════
+       ARROWS
+  ════════════════════════════════════════ -->
+
+  <!-- Browser ↔ Laptop  (SSE + REST) -->
+  <line x1="240" y1="310" x2="308" y2="200" stroke="#3b82f6" stroke-width="2" marker-end="url(#arrow-blue)"/>
+  <line x1="308" y1="215" x2="240" y2="325" stroke="#3b82f6" stroke-width="2" marker-end="url(#arrow-blue)"/>
+  <rect x="236" y="245" width="66" height="30" rx="5" fill="#dbeafe"/>
+  <text x="269" y="258" text-anchor="middle" font-size="10" fill="#1d4ed8" font-weight="600">POST /api/</text>
+  <text x="269" y="271" text-anchor="middle" font-size="10" fill="#1d4ed8" font-weight="600">speak, analyze</text>
+  <rect x="162" y="285" width="52" height="18" rx="5" fill="#dbeafe"/>
+  <text x="188" y="298" text-anchor="middle" font-size="10" fill="#1d4ed8" font-weight="600">SSE events</text>
+
+  <!-- Laptop → ESP32 sensor  (say?url) -->
+  <path d="M 380 240 Q 280 350 175 438" stroke="#ea580c" stroke-width="2" fill="none" marker-end="url(#arrow-orange)"/>
+  <rect x="225" y="315" width="100" height="30" rx="5" fill="#ffedd5"/>
+  <text x="275" y="328" text-anchor="middle" font-size="10" fill="#c2410c" font-weight="600">GET /say?url=</text>
+  <text x="275" y="341" text-anchor="middle" font-size="10" fill="#c2410c" font-weight="600">laptop:8000/tts/*.raw</text>
+
+  <!-- Laptop → ESP32 sensor  (poll /distance) -->
+  <path d="M 350 240 Q 240 370 155 438" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="5 3" fill="none" marker-end="url(#arrow)"/>
+  <text x="207" y="370" text-anchor="middle" font-size="10" fill="#6b7280">GET /distance</text>
+
+  <!-- ESP32 sensor → Laptop  (download audio) -->
+  <path d="M 265 440 Q 310 380 390 242" stroke="#ea580c" stroke-width="1.5" stroke-dasharray="5 3" fill="none" marker-end="url(#arrow-orange)"/>
+  <text x="295" y="405" text-anchor="middle" font-size="10" fill="#c2410c">downloads .raw</text>
+
+  <!-- Laptop ↔ ESP32-CAM -->
+  <path d="M 520 200 Q 630 320 695 438" stroke="#7c3aed" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <path d="M 710 438 Q 660 320 540 215" stroke="#7c3aed" stroke-width="2" fill="none" marker-end="url(#arrow)"/>
+  <rect x="600" y="295" width="90" height="30" rx="5" fill="#ede9fe"/>
+  <text x="645" y="308" text-anchor="middle" font-size="10" fill="#6d28d9" font-weight="600">GET /capture</text>
+  <text x="645" y="321" text-anchor="middle" font-size="10" fill="#6d28d9" font-weight="600">GET /distance</text>
+  <rect x="530" y="350" width="68" height="18" rx="5" fill="#ede9fe"/>
+  <text x="564" y="363" text-anchor="middle" font-size="10" fill="#6d28d9" font-weight="600">JPEG bytes</text>
+
+  <!-- Browser → ESP32-CAM stream -->
+  <path d="M 240" y1="340" d="M 240 340 Q 480 420 618 490" stroke="#7c3aed" stroke-width="1.5" stroke-dasharray="5 3" fill="none" marker-end="url(#arrow)"/>
+  <text x="440" y="435" text-anchor="middle" font-size="10" fill="#6d28d9">:81/stream (MJPEG)</text>
+
+  <!-- Legend -->
+  <rect x="660" y="90" width="210" height="130" rx="8" fill="#ffffff" stroke="#d1d5db" stroke-width="1.5"/>
+  <text x="765" y="110" text-anchor="middle" font-size="12" font-weight="700" fill="#374151">Legend</text>
+  <line x1="675" y1="125" x2="710" y2="125" stroke="#3b82f6" stroke-width="2" marker-end="url(#arrow-blue)"/>
+  <text x="718" y="129" font-size="11" fill="#374151">Browser ↔ Server</text>
+  <line x1="675" y1="145" x2="710" y2="145" stroke="#ea580c" stroke-width="2" marker-end="url(#arrow-orange)"/>
+  <text x="718" y="149" font-size="11" fill="#374151">Server → Speaker</text>
+  <line x1="675" y1="165" x2="710" y2="165" stroke="#7c3aed" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="718" y="169" font-size="11" fill="#374151">Server ↔ Camera</text>
+  <line x1="675" y1="185" x2="710" y2="185" stroke="#9ca3af" stroke-width="1.5" stroke-dasharray="5 3" marker-end="url(#arrow)"/>
+  <text x="718" y="189" font-size="11" fill="#374151">Polling / download</text>
+  <text x="675" y="210" font-size="10" fill="#6b7280">All traffic: HTTP over WiFi</text>
+</svg>
